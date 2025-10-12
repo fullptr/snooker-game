@@ -115,7 +115,7 @@ auto scene_game(snooker::window& window) -> next_state
 
     const auto ball_radius = 2.54f; // english pool bool cm == 1 inch
     const auto board_colour = from_hex(0x3db81e);
-    const auto break_speed = 983.49; // cm
+    const auto break_speed = 983.49f; // cm
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
@@ -128,13 +128,20 @@ auto scene_game(snooker::window& window) -> next_state
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
         
+        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
+        const auto top_left = window.dimensions() / 2.0f - pool_table.dimensions() * board_to_screen / 2.0f;
+        const auto aim_direction = glm::normalize(top_left + cue_ball.pos * board_to_screen - glm::vec2{window.mouse_pos()});
+        
         for (const auto event : window.events()) {
             ui.on_event(event);
+            if (const auto e = event.get_if<mouse_pressed_event>()) {
+                cue_ball.vel = 100.0f * aim_direction;
+            }
         }
-        
-        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
 
-        const auto top_left = window.dimensions() / 2.0f - pool_table.dimensions() * board_to_screen / 2.0f;
+        // Some bad physics, will improve later
+        cue_ball.pos += cue_ball.vel * (float)dt;
+        cue_ball.vel *= 0.9f;
 
         // Draw table
         renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
@@ -146,7 +153,6 @@ auto scene_game(snooker::window& window) -> next_state
         renderer.push_circle(top_left + cue_ball.pos * board_to_screen, {1, 1, 1, 1}, ball_radius * board_to_screen);
 
         // Draw cue
-        const auto aim_direction = glm::normalize(top_left + cue_ball.pos * board_to_screen - glm::vec2{window.mouse_pos()});
         renderer.push_line(top_left + cue_ball.pos * board_to_screen, top_left + cue_ball.pos * board_to_screen + aim_direction * 5.0f * board_to_screen, {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
