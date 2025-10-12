@@ -30,10 +30,9 @@ enum class next_state
 
 constexpr auto clear_colour = snooker::from_hex(0x222f3e);
 
-auto scene_main_menu(snooker::window& window) -> next_state
+auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     auto timer = snooker::timer{};
-    auto renderer = snooker::renderer{};
     auto ui    = snooker::ui_engine{&renderer};
 
     while (window.is_running()) {
@@ -106,11 +105,10 @@ struct ball
     glm::vec4 colour;
 };
 
-auto scene_game(snooker::window& window) -> next_state
+auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
     auto timer    = snooker::timer{};
-    auto renderer = snooker::renderer{};
     auto ui       = snooker::ui_engine{&renderer};
 
     const auto ball_radius = 2.54f; // english pool bool cm == 1 inch
@@ -172,15 +170,16 @@ auto main() -> int
     using namespace snooker;
 
     auto window = snooker::window{"Snooker Game", 1280, 720};
+    auto renderer = snooker::renderer{};
     auto next   = next_state::main_menu;
 
     while (true) {
         switch (next) {
             case next_state::main_menu: {
-                next = scene_main_menu(window);
+                next = scene_main_menu(window, renderer);
             } break;
             case next_state::game: {
-                next = scene_game(window);
+                next = scene_game(window, renderer);
             } break;
             case next_state::exit: {
                 std::print("closing game\n");
