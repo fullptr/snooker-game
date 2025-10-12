@@ -91,10 +91,19 @@ auto scene_main_menu(snooker::window& window) -> next_state
 }
 
 // dimensions are an english pool table in cm (6ft x 3ft)
-struct board
+struct table
 {
-    f32 length = 182.88f;
-    f32 width = 91.44;
+    f32 length;
+    f32 width;
+
+    auto dimensions() -> glm::vec2 { return {length, width}; }
+};
+
+struct ball
+{
+    glm::vec2 pos;
+    glm::vec2 vel;
+    glm::vec4 colour;
 };
 
 auto scene_game(snooker::window& window) -> next_state
@@ -106,7 +115,14 @@ auto scene_game(snooker::window& window) -> next_state
 
     const auto ball_radius = 2.54f; // english pool bool cm == 1 inch
     const auto board_colour = from_hex(0x3db81e);
-    auto b = board{};
+    const auto break_speed = 983.49; // cm
+
+    auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
+    auto pool_balls = std::vector{
+        ball{ pool_table.dimensions() / 2.0f, {0.0f, 0.0f}, {1, 0, 0, 1} },
+        ball{ pool_table.dimensions() / 2.0f + glm::vec2{5.0f, 5.0f}, {0.0f, 0.0f}, {1, 1, 0, 1} }
+    };
+    auto cue_ball = ball{{50.0f, 50.0f}, {0.0f, 0.0f}};
     
     while (window.is_running()) {
         const double dt = timer.on_update();
@@ -116,10 +132,16 @@ auto scene_game(snooker::window& window) -> next_state
             ui.on_event(event);
         }
         
-        const auto board_to_screen = (0.9f * window.width()) / b.length;
+        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
 
-        renderer.push_quad({window.width() / 2, window.height() / 2}, b.length * board_to_screen, b.width * board_to_screen, 0, board_colour);
-        renderer.push_circle({window.width() / 2, window.height() / 2}, {1, 1, 1, 1}, ball_radius * board_to_screen);
+        const auto top_left = window.dimensions() / 2.0f - pool_table.dimensions() * board_to_screen / 2.0f;
+
+        renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
+
+        for (const auto& ball : pool_balls) {
+            renderer.push_circle(top_left + ball.pos * board_to_screen, ball.colour, ball_radius * board_to_screen);
+        }
+        renderer.push_circle(top_left + cue_ball.pos * board_to_screen, {1, 1, 1, 1}, ball_radius * board_to_screen);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;

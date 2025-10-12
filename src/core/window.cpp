@@ -186,6 +186,11 @@ auto window::height() const -> int
     return d_data.height; 
 }
 
+auto window::dimensions() const -> glm::vec2
+{
+    return {width(), height()};
+}
+
 auto window::native_handle() -> GLFWwindow*
 {
     return d_data.native_window;

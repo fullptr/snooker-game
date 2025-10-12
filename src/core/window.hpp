@@ -54,6 +54,7 @@ public:
 
     auto width() const -> int;
     auto height() const -> int;
+    auto dimensions() const -> glm::vec2;
 
     auto native_handle() -> GLFWwindow*;
 };
