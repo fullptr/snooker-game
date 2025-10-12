@@ -4,7 +4,6 @@
 #include "camera.hpp"
 #include "common.hpp"
 #include "font.hpp"
-#include "sudoku.hpp"
 
 #include <glm/glm.hpp>
 

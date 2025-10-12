@@ -3,7 +3,6 @@
 #include "shader.hpp"
 #include "texture.hpp"
 #include "event.hpp"
-#include "sudoku.hpp"
 #include "utility.hpp"
 #include "font.hpp"
 #include "common.hpp"

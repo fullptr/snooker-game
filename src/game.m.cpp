@@ -96,7 +96,7 @@ auto scene_game(sudoku::window& window) -> next_state
         for (const auto event : window.events()) {
             ui.on_event(event);
         }
-        
+
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
         }
@@ -113,7 +113,7 @@ auto main() -> int
 {
     using namespace sudoku;
 
-    auto window = sudoku::window{"Snooker Game", 1280, 720};
+    auto window = sudoku::window{"The Way of Sudoku", 1280, 720};
     auto next   = next_state::main_menu;
 
     while (true) {
