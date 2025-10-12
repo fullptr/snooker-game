@@ -135,13 +135,13 @@ auto scene_game(snooker::window& window) -> next_state
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>()) {
-                cue_ball.vel = 100.0f * aim_direction;
+                cue_ball.vel = 200.0f * aim_direction;
             }
         }
 
         // Some bad physics, will improve later
         cue_ball.pos += cue_ball.vel * (float)dt;
-        cue_ball.vel *= 0.9f;
+        cue_ball.vel *= 0.95f;
 
         // Draw table
         renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
