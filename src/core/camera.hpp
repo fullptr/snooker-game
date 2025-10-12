@@ -1,7 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 
-namespace sudoku {
+namespace snooker {
 
 struct camera
 {

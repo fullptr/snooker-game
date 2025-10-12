@@ -10,7 +10,7 @@
 
 #include <Windows.h>
 
-namespace sudoku {
+namespace snooker {
 
 timer::timer()
     : d_clock()

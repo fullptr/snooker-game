@@ -25,14 +25,14 @@ enum class next_state
     exit,
 };
 
-constexpr auto clear_colour = sudoku::from_hex(0x222f3e);
+constexpr auto clear_colour = snooker::from_hex(0x222f3e);
 
-auto scene_main_menu(sudoku::window& window) -> next_state
+auto scene_main_menu(snooker::window& window) -> next_state
 {
-    using namespace sudoku;
-    auto timer = sudoku::timer{};
-    auto renderer = sudoku::renderer{};
-    auto ui    = sudoku::ui_engine{&renderer};
+    using namespace snooker;
+    auto timer = snooker::timer{};
+    auto renderer = snooker::renderer{};
+    auto ui    = snooker::ui_engine{&renderer};
 
     while (window.is_running()) {
         const double dt = timer.on_update();
@@ -72,7 +72,7 @@ auto scene_main_menu(sudoku::window& window) -> next_state
         renderer.push_text("0123456789 () {} [] ^ < > - _ = + ! ? : ; . , @ % $ / \\ \" ' # ~ & | `", {para_left, para_top + 9 * 11 * scale}, scale, colour);
 
         std::array<char, 8> buf = {};
-        renderer.push_text_box(sudoku::format_to(buf, "{}", timer.frame_rate()), {0, 0}, 120, 50, 3, colour);
+        renderer.push_text_box(snooker::format_to(buf, "{}", timer.frame_rate()), {0, 0}, 120, 50, 3, colour);
         ui.end_frame(dt);
 
         renderer.draw(window.width(), window.height());
@@ -82,12 +82,12 @@ auto scene_main_menu(sudoku::window& window) -> next_state
     return next_state::exit;
 }
 
-auto scene_game(sudoku::window& window) -> next_state
+auto scene_game(snooker::window& window) -> next_state
 {
-    using namespace sudoku;
-    auto timer    = sudoku::timer{};
-    auto renderer = sudoku::renderer{};
-    auto ui       = sudoku::ui_engine{&renderer};
+    using namespace snooker;
+    auto timer    = snooker::timer{};
+    auto renderer = snooker::renderer{};
+    auto ui       = snooker::ui_engine{&renderer};
 
     while (window.is_running()) {
         const double dt = timer.on_update();
@@ -111,9 +111,9 @@ auto scene_game(sudoku::window& window) -> next_state
 
 auto main() -> int
 {
-    using namespace sudoku;
+    using namespace snooker;
 
-    auto window = sudoku::window{"The Way of Sudoku", 1280, 720};
+    auto window = snooker::window{"The Way of snooker", 1280, 720};
     auto next   = next_state::main_menu;
 
     while (true) {

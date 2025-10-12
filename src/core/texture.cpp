@@ -7,7 +7,7 @@
 #include <cassert>
 #include <print>
 
-namespace sudoku {
+namespace snooker {
 
 texture_dyn::texture_dyn(i32 width, i32 height)
 {

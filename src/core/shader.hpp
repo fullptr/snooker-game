@@ -7,7 +7,7 @@
 #include <string>
 #include <filesystem>
 
-namespace sudoku {
+namespace snooker {
 
 class shader
 {

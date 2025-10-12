@@ -8,11 +8,10 @@
 #include <filesystem>
 
 #include <glm/glm.hpp>
-#include <box2d/box2d.h>
 
 #include "common.hpp"
 
-namespace sudoku {
+namespace snooker {
 
 static constexpr auto up = glm::ivec2{0, -1};
 static constexpr auto right = glm::ivec2{1, 0};
@@ -121,14 +120,14 @@ struct std::formatter<T> : std::formatter<std::string>
 template <typename T>
 concept has_to_string_free_function = requires(T obj)
 {
-    { sudoku::to_string(obj) } -> std::convertible_to<std::string>;
+    { snooker::to_string(obj) } -> std::convertible_to<std::string>;
 };
 
 template <has_to_string_free_function T>
 struct std::formatter<T> : std::formatter<std::string>
 {
     auto format(const T& obj, auto& ctx) const {
-        return std::formatter<std::string>::format(sudoku::to_string(obj), ctx);
+        return std::formatter<std::string>::format(snooker::to_string(obj), ctx);
     }
 };
 

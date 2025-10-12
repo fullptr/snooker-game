@@ -6,7 +6,7 @@
 
 #include <glm/glm.hpp>
 
-namespace sudoku {
+namespace snooker {
 
 class texture_dyn
 {

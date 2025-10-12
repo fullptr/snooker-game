@@ -9,7 +9,7 @@
 #include <ranges>
 #include <print>
 
-namespace sudoku {
+namespace snooker {
 
 ui_engine::ui_engine(renderer* renderer)
     : d_renderer{renderer}
@@ -93,11 +93,11 @@ bool ui_engine::button(
     }
     else if (data.is_hovered()) {
         const auto t = std::clamp(data.time_hovered(d_time) / lerp_time, 0.0, 1.0);
-        colour = sudoku::lerp(unhovered_colour, hovered_colour, t);
+        colour = snooker::lerp(unhovered_colour, hovered_colour, t);
     }
     else if (d_time > lerp_time) { // Don't start the game looking hovered
         const auto t = std::clamp(data.time_unhovered(d_time) / lerp_time, 0.0, 1.0);
-        colour = sudoku::lerp(hovered_colour, unhovered_colour, t);
+        colour = snooker::lerp(hovered_colour, unhovered_colour, t);
     }
     
     d_renderer->push_rect(pos, width, height, colour);

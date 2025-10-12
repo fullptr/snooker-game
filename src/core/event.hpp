@@ -5,7 +5,7 @@
 #include <string>
 #include <cstdint>
 
-namespace sudoku {
+namespace snooker {
 
 enum class mouse
 {

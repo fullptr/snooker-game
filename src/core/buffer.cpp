@@ -2,7 +2,7 @@
 
 #include <glad/glad.h>
 
-namespace sudoku {
+namespace snooker {
 
 void vertex_buffer::set_data(std::size_t size, const void* data) const
 {

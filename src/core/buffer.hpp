@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <span>
 
-namespace sudoku {
+namespace snooker {
 
 class vertex_buffer
 {

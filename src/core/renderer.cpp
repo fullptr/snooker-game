@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace sudoku {
+namespace snooker {
 namespace {
 
 constexpr auto line_vertex = R"SHADER(

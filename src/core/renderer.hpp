@@ -9,7 +9,7 @@
 
 #include <memory>
 
-namespace sudoku {
+namespace snooker {
 
 struct line
 {

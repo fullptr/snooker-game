@@ -4,25 +4,25 @@
 #include <type_traits>
 #include <utility>
 
-namespace sudoku {
+namespace snooker {
 
 auto input::on_event(const event& event) -> void
 {
-    if (const auto e = event.get_if<sudoku::mouse_pressed_event>()) {
+    if (const auto e = event.get_if<snooker::mouse_pressed_event>()) {
         d_mouse_down[std::to_underlying(e->button)] = true;
         d_mouse_down_this_frame[std::to_underlying(e->button)] = true;
     }
-    else if (const auto e = event.get_if<sudoku::mouse_released_event>()) {
+    else if (const auto e = event.get_if<snooker::mouse_released_event>()) {
         d_mouse_down[std::to_underlying(e->button)] = false;
     }
-    else if (const auto e = event.get_if<sudoku::mouse_moved_event>()) {
+    else if (const auto e = event.get_if<snooker::mouse_moved_event>()) {
         d_positiion_this_frame = e->pos;
     }
-    else if (const auto e = event.get_if<sudoku::keyboard_pressed_event>()) {
+    else if (const auto e = event.get_if<snooker::keyboard_pressed_event>()) {
         d_keyboard_down[std::to_underlying(e->key)] = true;
         d_keyboard_down_this_frame[std::to_underlying(e->key)] = true;
     }
-    else if (const auto e = event.get_if<sudoku::keyboard_released_event>()) {
+    else if (const auto e = event.get_if<snooker::keyboard_released_event>()) {
         d_keyboard_down[std::to_underlying(e->key)] = false;
     }
 }

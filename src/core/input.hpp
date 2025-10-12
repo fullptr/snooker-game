@@ -3,7 +3,7 @@
 
 #include <bitset>
 
-namespace sudoku {
+namespace snooker {
 
 class input
 {

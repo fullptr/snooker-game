@@ -13,7 +13,7 @@
 
 #include <glm/glm.hpp>
 
-namespace sudoku {
+namespace snooker {
 
 class widget_key
 {
@@ -47,15 +47,15 @@ public:
 }
 
 template<>
-struct std::hash<sudoku::widget_key>
+struct std::hash<snooker::widget_key>
 {
-    auto operator()(const sudoku::widget_key& wk) const -> std::size_t
+    auto operator()(const snooker::widget_key& wk) const -> std::size_t
     {
         return wk.hash();
     }
 };
 
-namespace sudoku {
+namespace snooker {
 
 struct ui_logic_quad
 {

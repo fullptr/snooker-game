@@ -2,7 +2,7 @@
 
 #include <ranges>
 
-namespace sudoku {
+namespace snooker {
 
 auto font_atlas::get_character(char c) const -> const character&
 {

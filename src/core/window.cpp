@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <print>
 
-namespace sudoku {
+namespace snooker {
 namespace {
 
 auto get_window_data(GLFWwindow* window) -> window_data&
