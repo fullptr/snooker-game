@@ -136,12 +136,18 @@ auto scene_game(snooker::window& window) -> next_state
 
         const auto top_left = window.dimensions() / 2.0f - pool_table.dimensions() * board_to_screen / 2.0f;
 
+        // Draw table
         renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
 
+        // Draw balls
         for (const auto& ball : pool_balls) {
             renderer.push_circle(top_left + ball.pos * board_to_screen, ball.colour, ball_radius * board_to_screen);
         }
         renderer.push_circle(top_left + cue_ball.pos * board_to_screen, {1, 1, 1, 1}, ball_radius * board_to_screen);
+
+        // Draw cue
+        const auto aim_direction = glm::normalize(top_left + cue_ball.pos * board_to_screen - glm::vec2{window.mouse_pos()});
+        renderer.push_line(top_left + cue_ball.pos * board_to_screen, top_left + cue_ball.pos * board_to_screen + aim_direction * 5.0f * board_to_screen, {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
