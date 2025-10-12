@@ -19,6 +19,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+using namespace snooker;
+
 enum class next_state
 {
     main_menu,
@@ -88,6 +90,13 @@ auto scene_main_menu(snooker::window& window) -> next_state
     return next_state::exit;
 }
 
+// dimensions are an english pool table in cm (6ft x 3ft)
+struct board
+{
+    f32 length = 182.88f;
+    f32 width = 91.44;
+};
+
 auto scene_game(snooker::window& window) -> next_state
 {
     using namespace snooker;
@@ -95,13 +104,22 @@ auto scene_game(snooker::window& window) -> next_state
     auto renderer = snooker::renderer{};
     auto ui       = snooker::ui_engine{&renderer};
 
+    const auto ball_radius = 2.54f; // english pool bool cm == 1 inch
+    const auto board_colour = from_hex(0x3db81e);
+    auto b = board{};
+    
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
-
+        
         for (const auto event : window.events()) {
             ui.on_event(event);
         }
+        
+        const auto board_to_screen = (0.9f * window.width()) / b.length;
+
+        renderer.push_quad({window.width() / 2, window.height() / 2}, b.length * board_to_screen, b.width * board_to_screen, 0, board_colour);
+        renderer.push_circle({window.width() / 2, window.height() / 2}, {1, 1, 1, 1}, ball_radius * board_to_screen);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
@@ -119,7 +137,7 @@ auto main() -> int
 {
     using namespace snooker;
 
-    auto window = snooker::window{"The Way of snooker", 1280, 720};
+    auto window = snooker::window{"Snooker Game", 1280, 720};
     auto next   = next_state::main_menu;
 
     while (true) {
