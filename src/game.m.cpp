@@ -29,7 +29,6 @@ constexpr auto clear_colour = snooker::from_hex(0x222f3e);
 
 auto scene_main_menu(snooker::window& window) -> next_state
 {
-    using namespace snooker;
     auto timer = snooker::timer{};
     auto renderer = snooker::renderer{};
     auto ui    = snooker::ui_engine{&renderer};
@@ -59,7 +58,7 @@ auto scene_main_menu(snooker::window& window) -> next_state
 
         const auto para_left = 100;
         const auto para_top = 300;
-        constexpr auto colour = from_hex(0xecf0f1);
+        constexpr auto colour = snooker::from_hex(0xecf0f1);
         renderer.push_text("Lorem ipsum dolor sit amet, consectetur adipiscing elit,", {para_left, para_top}, scale, colour);
         renderer.push_text("sed do eiusmod tempor incididunt ut labore et dolore magna", {para_left, para_top + 1 * 11 * scale}, scale, colour);
         renderer.push_text("aliqua. Ut enim ad minim veniam, quis nostrud exercitation", {para_left, para_top + 2 * 11 * scale}, scale, colour);
