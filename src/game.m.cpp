@@ -29,6 +29,9 @@ enum class next_state
 };
 
 constexpr auto clear_colour = snooker::from_hex(0x222f3e);
+constexpr auto ball_radius = 2.54f; // english pool bool cm == 1 inch
+constexpr auto board_colour = from_hex(0x3db81e);
+constexpr auto break_speed = 983.49f; // cm
 
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
@@ -105,15 +108,35 @@ struct ball
     glm::vec4 colour;
 };
 
+auto update_ball(ball& b, const table& t, float dt) -> void
+{
+    b.pos += b.vel * dt;
+    b.vel *= 0.98f;
+
+    if (b.pos.x - ball_radius < 0) {
+        b.pos.x = ball_radius;
+        b.vel.x = -b.vel.x;
+    }
+    if (b.pos.x + ball_radius > t.length) {
+        b.pos.x = t.length - ball_radius;
+        b.vel.x = -b.vel.x;
+    }
+
+    if (b.pos.y - ball_radius < 0) {
+        b.pos.y = ball_radius;
+        b.vel.y = -b.vel.y;
+    }
+    if (b.pos.y + ball_radius > t.width) {
+        b.pos.y = t.width - ball_radius;
+        b.vel.y = -b.vel.y;
+    }
+}
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
     auto timer    = snooker::timer{};
     auto ui       = snooker::ui_engine{&renderer};
-
-    const auto ball_radius = 2.54f; // english pool bool cm == 1 inch
-    const auto board_colour = from_hex(0x3db81e);
-    const auto break_speed = 983.49f; // cm
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
@@ -138,8 +161,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Some bad physics, will improve later
-        cue_ball.pos += cue_ball.vel * (float)dt;
-        cue_ball.vel *= 0.95f;
+        update_ball(cue_ball, pool_table, (float)dt);
 
         // Draw table
         renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
