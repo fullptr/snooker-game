@@ -30,6 +30,7 @@ enum class next_state
 
 constexpr auto clear_colour = snooker::from_hex(0x222f3e);
 constexpr auto ball_radius = 2.54f; // english pool bool cm == 1 inch
+constexpr auto ball_mass = 140.0f; // grams
 constexpr auto board_colour = from_hex(0x3db81e);
 constexpr auto break_speed = 983.49f; // cm
 
@@ -106,6 +107,8 @@ struct ball
     glm::vec2 pos;
     glm::vec2 vel;
     glm::vec4 colour;
+
+    float mass = ball_mass;
 };
 
 auto update_ball(ball& b, const table& t, float dt) -> void
@@ -132,6 +135,42 @@ auto update_ball(ball& b, const table& t, float dt) -> void
     }
 }
 
+// TODO: allow for balls of different masses
+auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
+{
+    if (glm::length(a.pos - b.pos) > 2 * ball_radius) {
+        return; // no contact
+    }
+
+    constexpr auto restitution = 0.8f;
+
+    const auto dp = a.pos - b.pos;
+    const auto dv = a.vel - b.vel;
+
+    if (glm::length2(dp) == 0) {
+        return;
+    }
+
+    const auto length2 = glm::dot(dp, dp);
+    if (length2 == 0.0f) {
+        return; // avoid division by zero
+    }
+
+    const auto normal = glm::normalize(dp);
+    const auto vel_along_normal = glm::dot(dv, normal);
+
+    if (vel_along_normal >= 0.0f) {
+        return; // moving away so no need to resolve
+    }
+
+    const auto inverse_mass = (1.0f / a.mass) + (1.0f / b.mass);
+    const auto impulse_size = -(1.0f + restitution) * vel_along_normal / inverse_mass;
+    const auto impulse = impulse_size * normal;
+
+    a.vel += impulse / a.mass;
+    b.vel -= impulse / b.mass;
+}
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -140,18 +179,19 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
+        ball{{50.0f, 50.0f}, {0.0f, 0.0f}},
         ball{ pool_table.dimensions() / 2.0f, {0.0f, 0.0f}, {1, 0, 0, 1} },
         ball{ pool_table.dimensions() / 2.0f + glm::vec2{5.0f, 5.0f}, {0.0f, 0.0f}, {1, 1, 0, 1} }
     };
-    auto cue_ball = ball{{50.0f, 50.0f}, {0.0f, 0.0f}};
     
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
         
+        auto& cue_ball = pool_balls[0];
         const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
         const auto top_left = window.dimensions() / 2.0f - pool_table.dimensions() * board_to_screen / 2.0f;
-        const auto aim_direction = glm::normalize(top_left + cue_ball.pos * board_to_screen - glm::vec2{window.mouse_pos()});
+        const auto aim_direction = -glm::normalize(top_left + cue_ball.pos * board_to_screen - glm::vec2{window.mouse_pos()});
         
         for (const auto event : window.events()) {
             ui.on_event(event);
@@ -160,8 +200,15 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             }
         }
 
-        // Some bad physics, will improve later
-        update_ball(cue_ball, pool_table, (float)dt);
+        // TODO: Fix the time step of the simulation with an accumulator
+
+        // Update ball positions
+        for (std::size_t i = 0; i != pool_balls.size(); ++i) {
+            update_ball(pool_balls[i], pool_table, (float)dt);
+            for (std::size_t j = i + 1; j != pool_balls.size(); ++j) {
+                update_ball_collision(pool_balls[i], pool_balls[j], pool_table, (float)dt);
+            }
+        }
 
         // Draw table
         renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
