@@ -171,6 +171,36 @@ auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
     b.vel -= impulse / b.mass;
 }
 
+auto add_triangle(std::vector<ball>& balls, glm::vec2 front_pos)
+{
+    const auto left = glm::vec2{std::sqrt(3) * ball_radius, -ball_radius};
+    const auto down = glm::vec2{0, 2 * ball_radius};
+
+    const auto red = glm::vec4{1, 0, 0, 1};
+    const auto yel = glm::vec4{1, 1, 0, 1};
+    const auto blk = glm::vec4{0, 0, 0, 1};
+
+    balls.push_back(ball{ front_pos + 0.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
+
+    balls.push_back(ball{ front_pos + 1.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 1.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+
+    balls.push_back(ball{ front_pos + 2.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 2.0f * left + 1.0f * down, {0.0f, 0.0f}, blk });
+    balls.push_back(ball{ front_pos + 2.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+
+    balls.push_back(ball{ front_pos + 3.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 3.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 3.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 3.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
+
+    balls.push_back(ball{ front_pos + 4.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 4.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 4.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 4.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 4.0f * left + 4.0f * down, {0.0f, 0.0f}, red });
+}
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -179,10 +209,11 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
-        ball{{50.0f, 50.0f}, {0.0f, 0.0f}},
-        ball{ pool_table.dimensions() / 2.0f, {0.0f, 0.0f}, {1, 0, 0, 1} },
-        ball{ pool_table.dimensions() / 2.0f + glm::vec2{5.0f, 5.0f}, {0.0f, 0.0f}, {1, 1, 0, 1} }
+        ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}},
+        //ball{ pool_table.dimensions() / 2.0f, {0.0f, 0.0f}, {1, 0, 0, 1} },
+        //ball{ pool_table.dimensions() / 2.0f + glm::vec2{5.0f, 5.0f}, {0.0f, 0.0f}, {1, 1, 0, 1} }
     };
+    add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
     
     while (window.is_running()) {
         const double dt = timer.on_update();
