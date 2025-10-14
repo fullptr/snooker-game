@@ -111,6 +111,7 @@ struct ball
     float mass = ball_mass;
 };
 
+// TODO: handle balls intersecting
 auto update_ball(ball& b, const table& t, float dt) -> void
 {
     b.pos += b.vel * dt;
@@ -210,8 +211,6 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
         ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}},
-        //ball{ pool_table.dimensions() / 2.0f, {0.0f, 0.0f}, {1, 0, 0, 1} },
-        //ball{ pool_table.dimensions() / 2.0f + glm::vec2{5.0f, 5.0f}, {0.0f, 0.0f}, {1, 1, 0, 1} }
     };
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
     
@@ -235,10 +234,13 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         // Update ball positions
         for (std::size_t i = 0; i != pool_balls.size(); ++i) {
-            update_ball(pool_balls[i], pool_table, (float)dt);
             for (std::size_t j = i + 1; j != pool_balls.size(); ++j) {
                 update_ball_collision(pool_balls[i], pool_balls[j], pool_table, (float)dt);
             }
+        }
+
+        for (auto& ball : pool_balls) {
+            update_ball(ball, pool_table, (float)dt);
         }
 
         // Draw table
