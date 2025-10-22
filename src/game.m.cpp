@@ -143,14 +143,20 @@ auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
         return; // no contact
     }
 
+    
     constexpr auto restitution = 0.8f;
-
+    
     const auto dp = a.pos - b.pos;
     const auto dv = a.vel - b.vel;
-
+    
     if (glm::length2(dp) == 0) {
         return;
     }
+
+    const auto overlap = (ball_radius * 2) - glm::length(dp);
+    const auto correction = glm::normalize(dp) * (overlap / 2.0f);
+    a.pos += correction;
+    b.pos -= correction;
 
     const auto length2 = glm::dot(dp, dp);
     if (length2 == 0.0f) {
@@ -183,23 +189,34 @@ auto add_triangle(std::vector<ball>& balls, glm::vec2 front_pos)
 
     balls.push_back(ball{ front_pos + 0.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
 
-    balls.push_back(ball{ front_pos + 1.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
-    balls.push_back(ball{ front_pos + 1.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+    //balls.push_back(ball{ front_pos + 1.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
+    //balls.push_back(ball{ front_pos + 1.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+//
+    //balls.push_back(ball{ front_pos + 2.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
+    //balls.push_back(ball{ front_pos + 2.0f * left + 1.0f * down, {0.0f, 0.0f}, blk });
+    //balls.push_back(ball{ front_pos + 2.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+//
+    //balls.push_back(ball{ front_pos + 3.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
+    //balls.push_back(ball{ front_pos + 3.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+    //balls.push_back(ball{ front_pos + 3.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+    //balls.push_back(ball{ front_pos + 3.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
+//
+    //balls.push_back(ball{ front_pos + 4.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
+    //balls.push_back(ball{ front_pos + 4.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+    //balls.push_back(ball{ front_pos + 4.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+    //balls.push_back(ball{ front_pos + 4.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
+    //balls.push_back(ball{ front_pos + 4.0f * left + 4.0f * down, {0.0f, 0.0f}, red });
+}
 
-    balls.push_back(ball{ front_pos + 2.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
-    balls.push_back(ball{ front_pos + 2.0f * left + 1.0f * down, {0.0f, 0.0f}, blk });
-    balls.push_back(ball{ front_pos + 2.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-
-    balls.push_back(ball{ front_pos + 3.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
-    balls.push_back(ball{ front_pos + 3.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-    balls.push_back(ball{ front_pos + 3.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-    balls.push_back(ball{ front_pos + 3.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
-
-    balls.push_back(ball{ front_pos + 4.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
-    balls.push_back(ball{ front_pos + 4.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-    balls.push_back(ball{ front_pos + 4.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-    balls.push_back(ball{ front_pos + 4.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
-    balls.push_back(ball{ front_pos + 4.0f * left + 4.0f * down, {0.0f, 0.0f}, red });
+// Assumes that the direction vector is length 1
+auto line_intersect(glm::vec2 start, glm::vec2 dir, glm::vec2 ball_pos, float ball_radius) -> bool
+{
+    if (start == ball_pos) return false; // exclude cue ball
+    
+    const auto v = ball_pos - start;
+    const auto cross = v.x * dir.y - v.y * dir.x;
+    const auto distance = glm::abs(cross);
+    return distance < ball_radius;
 }
 
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
@@ -210,7 +227,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
-        ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}},
+        ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}, {1, 1, 1, 1}},
     };
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
     
@@ -247,12 +264,22 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
 
         // Draw balls
+        int index = 0;
         for (const auto& ball : pool_balls) {
-            renderer.push_circle(top_left + ball.pos * board_to_screen, ball.colour, ball_radius * board_to_screen);
+            if (line_intersect(
+                    top_left + cue_ball.pos * board_to_screen,
+                    glm::normalize(glm::vec2{window.mouse_pos()} - (top_left + cue_ball.pos * board_to_screen)),
+                    top_left + ball.pos * board_to_screen,
+                    ball_radius * board_to_screen))
+            {
+                renderer.push_circle(top_left + ball.pos * board_to_screen, glm::vec4{0, 1, 1, 1}, ball_radius * board_to_screen);
+            } else {
+                renderer.push_circle(top_left + ball.pos * board_to_screen, ball.colour, ball_radius * board_to_screen);
+            }
         }
-        renderer.push_circle(top_left + cue_ball.pos * board_to_screen, {1, 1, 1, 1}, ball_radius * board_to_screen);
 
         // Draw cue
+        renderer.push_line(top_left + cue_ball.pos * board_to_screen, window.mouse_pos(), {0, 0, 1, 0.5f}, 2.0f);
         renderer.push_line(top_left + cue_ball.pos * board_to_screen, top_left + cue_ball.pos * board_to_screen + aim_direction * 5.0f * board_to_screen, {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
