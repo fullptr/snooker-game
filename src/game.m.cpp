@@ -154,11 +154,6 @@ auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
         return;
     }
 
-    const auto overlap = (a.radius + b.radius) - glm::length(dp);
-    const auto correction = glm::normalize(dp) * (overlap / 2.0f);
-    a.pos += correction;
-    b.pos -= correction;
-
     const auto length2 = glm::dot(dp, dp);
     if (length2 == 0.0f) {
         return; // avoid division by zero
@@ -249,13 +244,12 @@ auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec
     for (std::size_t i = 1; i != balls.size(); ++i) {
         const auto ray = raycast(start, end, balls[i]);
         if (ray) {
-            if (ray->distance_along_line < distance) {
-                const auto rad_sum = (balls[0].radius + balls[i].radius); // TODO: Don't rely on the fact that the cue ball is pos 0.
-                distance = ray->distance_along_line;
-                ret = hit_contact{
-                    .ball_index=i,
-                    .cue_ball_pos=start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)))
-                };
+            const auto rad_sum = (balls[0].radius + balls[i].radius); // TODO: Don't rely on the fact that the cue ball is pos 0.
+            const auto new_cue_pos = start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)));
+            const auto ball_dist = glm::length(new_cue_pos - start);
+            if (ball_dist < distance) {
+                distance = ball_dist;
+                ret = hit_contact{ .ball_index=i, .cue_ball_pos=new_cue_pos };
             }
         }
     }
