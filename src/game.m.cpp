@@ -109,6 +109,7 @@ struct ball
     glm::vec4 colour;
 
     float mass = ball_mass;
+    float radius = ball_radius;
 };
 
 // TODO: handle balls intersecting
@@ -117,21 +118,21 @@ auto update_ball(ball& b, const table& t, float dt) -> void
     b.pos += b.vel * dt;
     b.vel *= 0.98f;
 
-    if (b.pos.x - ball_radius < 0) {
-        b.pos.x = ball_radius;
+    if (b.pos.x - b.radius < 0) {
+        b.pos.x = b.radius;
         b.vel.x = -b.vel.x;
     }
-    if (b.pos.x + ball_radius > t.length) {
-        b.pos.x = t.length - ball_radius;
+    if (b.pos.x + b.radius > t.length) {
+        b.pos.x = t.length - b.radius;
         b.vel.x = -b.vel.x;
     }
 
-    if (b.pos.y - ball_radius < 0) {
-        b.pos.y = ball_radius;
+    if (b.pos.y - b.radius < 0) {
+        b.pos.y = b.radius;
         b.vel.y = -b.vel.y;
     }
-    if (b.pos.y + ball_radius > t.width) {
-        b.pos.y = t.width - ball_radius;
+    if (b.pos.y + b.radius > t.width) {
+        b.pos.y = t.width - b.radius;
         b.vel.y = -b.vel.y;
     }
 }
@@ -139,7 +140,7 @@ auto update_ball(ball& b, const table& t, float dt) -> void
 // TODO: allow for balls of different masses
 auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
 {
-    if (glm::length(a.pos - b.pos) > 2 * ball_radius) {
+    if (glm::length(a.pos - b.pos) > 2 * b.radius) {
         return; // no contact
     }
 
@@ -153,7 +154,7 @@ auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
         return;
     }
 
-    const auto overlap = (ball_radius * 2) - glm::length(dp);
+    const auto overlap = (a.radius + b.radius) - glm::length(dp);
     const auto correction = glm::normalize(dp) * (overlap / 2.0f);
     a.pos += correction;
     b.pos -= correction;
@@ -231,15 +232,9 @@ auto raycast(glm::vec2 start, glm::vec2 dir, glm::vec2 ball_pos, float ball_radi
     return raycast_info{ distance_from, distance_along };
 }
 
-// Assumes that the direction vector is length 1
-auto line_intersect(glm::vec2 start, glm::vec2 dir, glm::vec2 ball_pos, float ball_radius) -> bool
+auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec2 dir) -> std::optional<std::size_t>
 {
-    if (start == ball_pos) return false; // exclude cue ball
-
-    const auto v = ball_pos - start;
-    const auto cross = v.x * dir.y - v.y * dir.x;
-    const auto distance = glm::abs(cross);
-    return distance < ball_radius;
+    return {};
 }
 
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
