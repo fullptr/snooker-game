@@ -326,11 +326,10 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         for (std::size_t i = 0; i != pool_balls.size(); ++i) {
             const auto& ball = pool_balls[i];
             if (contact_ball && contact_ball->ball_index == i) { // TODO: Exclude the cue ball in a better way than this
-                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(contact_ball->cue_ball_pos), {0, 0, 1, 0.5f}, 2.0f);
-                renderer.push_circle(c.to_screen(ball.pos), glm::vec4{0, 1, 1, 1}, c.to_screen(ball_radius));
-            } else {
-                renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball_radius));
+                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
+                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, c.to_screen(cue_ball.radius)); // TODO: Get the colour from the cue ball
             }
+            renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball.radius));
         }
 
         // Draw cue
