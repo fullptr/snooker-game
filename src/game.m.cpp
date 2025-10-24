@@ -250,10 +250,11 @@ auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec
         const auto ray = raycast(start, end, balls[i]);
         if (ray) {
             if (ray->distance_along_line < distance) {
+                const auto rad_sum = (balls[0].radius + balls[i].radius); // TODO: Don't rely on the fact that the cue ball is pos 0.
                 distance = ray->distance_along_line;
                 ret = hit_contact{
                     .ball_index=i,
-                    .cue_ball_pos=start + ray->dir * ray->distance_along_line
+                    .cue_ball_pos=start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)))
                 };
             }
         }
