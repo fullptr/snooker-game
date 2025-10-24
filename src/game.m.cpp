@@ -300,9 +300,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         int index = 0;
         for (const auto& ball : pool_balls) {
             const auto ray = raycast(
-                top_left + cue_ball.pos,
-                glm::normalize(glm::vec2{window.mouse_pos()} / board_to_screen - (top_left + cue_ball.pos)),
-                top_left + ball.pos,
+                cue_ball.pos,
+                glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos),
+                ball.pos,
                 ball_radius
             );
             if (ray) {
@@ -315,7 +315,6 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Draw cue
-        
         renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
