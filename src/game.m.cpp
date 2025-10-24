@@ -252,11 +252,14 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
+
+        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
+        const auto mouse_pos_board = glm::vec2{window.mouse_pos()} / board_to_screen;
+        const auto window_dimensions_board = window.dimensions() / board_to_screen;
         
         auto& cue_ball = pool_balls[0];
-        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
-        const auto top_left = (window.dimensions() / board_to_screen - pool_table.dimensions()) / 2.0f; // board space coord
-        const auto aim_direction = -glm::normalize(top_left + cue_ball.pos - glm::vec2{window.mouse_pos()} / board_to_screen);
+        const auto top_left = (window_dimensions_board - pool_table.dimensions()) / 2.0f; // board space coord
+        const auto aim_direction = glm::normalize(mouse_pos_board - (top_left + cue_ball.pos));
         
         for (const auto event : window.events()) {
             ui.on_event(event);
