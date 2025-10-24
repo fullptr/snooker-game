@@ -234,9 +234,31 @@ auto raycast(glm::vec2 start, glm::vec2 end, const ball& b) -> std::optional<ray
     return raycast_info{ distance_from, distance_along, dir };
 }
 
-auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec2 dir) -> std::optional<std::size_t>
+struct hit_contact
 {
-    return {};
+    std::size_t ball_index;
+    glm::vec2   cue_ball_pos;
+};
+
+auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
+{
+    if (balls.empty()) throw std::runtime_error{"balls should never be empty"}; // TODO: Make this an assert
+    auto ret = std::optional<hit_contact>{};
+    auto distance = std::numeric_limits<std::size_t>::max();
+
+    for (std::size_t i = 1; i != balls.size(); ++i) {
+        const auto ray = raycast(start, end, balls[i]);
+        if (ray) {
+            if (ray->distance_along_line < distance) {
+                distance = ray->distance_along_line;
+                ret = hit_contact{
+                    .ball_index=i,
+                    .cue_ball_pos=start + ray->dir * ray->distance_along_line
+                };
+            }
+        }
+    }
+    return ret;
 }
 
 struct converter
@@ -299,10 +321,11 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         renderer.push_rect(c.to_screen({0, 0}), c.to_screen(pool_table.length), c.to_screen(pool_table.width), board_colour);
 
         // Draw balls
-        for (const auto& ball : pool_balls) {
-            const auto ray = raycast(cue_ball.pos, c.to_board(window.mouse_pos()), ball);
-            if (ray && &ball != &cue_ball) { // TODO: Exclude the cue ball in a better way than this
-                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos + ray->dir * ray->distance_along_line), {0, 0, 1, 0.5f}, 2.0f);
+        const auto contact_ball = find_contact_ball(pool_balls, cue_ball.pos, c.to_board(window.mouse_pos()));
+        for (std::size_t i = 0; i != pool_balls.size(); ++i) {
+            const auto& ball = pool_balls[i];
+            if (contact_ball && contact_ball->ball_index == i) { // TODO: Exclude the cue ball in a better way than this
+                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(contact_ball->cue_ball_pos), {0, 0, 1, 0.5f}, 2.0f);
                 renderer.push_circle(c.to_screen(ball.pos), glm::vec4{0, 1, 1, 1}, c.to_screen(ball_radius));
             } else {
                 renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball_radius));
