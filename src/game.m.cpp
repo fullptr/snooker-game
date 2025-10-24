@@ -285,14 +285,14 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         int index = 0;
         for (const auto& ball : pool_balls) {
             const auto ray = raycast(
-                top_left + cue_ball.pos * board_to_screen,
-                glm::normalize(glm::vec2{window.mouse_pos()} - (top_left + cue_ball.pos * board_to_screen)),
-                top_left + ball.pos * board_to_screen,
-                ball_radius * board_to_screen
+                top_left / board_to_screen + cue_ball.pos,
+                glm::normalize(glm::vec2{window.mouse_pos()} / board_to_screen - (top_left / board_to_screen + cue_ball.pos)),
+                top_left / board_to_screen + ball.pos,
+                ball_radius
             );
             if (ray) {
                 const auto dir = glm::normalize(glm::vec2{window.mouse_pos()} - (top_left + cue_ball.pos * board_to_screen));
-                renderer.push_line(top_left + cue_ball.pos * board_to_screen, top_left + cue_ball.pos * board_to_screen + dir * ray->distance_along_line, {0, 0, 1, 0.5f}, 2.0f);
+                renderer.push_line(top_left + cue_ball.pos * board_to_screen, top_left + cue_ball.pos * board_to_screen + dir * ray->distance_along_line * board_to_screen, {0, 0, 1, 0.5f}, 2.0f);
                 renderer.push_circle(top_left + ball.pos * board_to_screen, glm::vec4{0, 1, 1, 1}, ball_radius * board_to_screen);
             } else {
                 renderer.push_circle(top_left + ball.pos * board_to_screen, ball.colour, ball_radius * board_to_screen);
