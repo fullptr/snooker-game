@@ -237,6 +237,16 @@ auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec
     return {};
 }
 
+struct converter
+{
+    glm::vec2 top_left;
+    float     board_to_screen;
+
+    auto to_board(glm::vec2 value) const -> glm::vec2 { return value / board_to_screen - top_left; }
+    auto to_screen(glm::vec2 value) const -> glm::vec2 { return (top_left + value) * board_to_screen; }
+    auto to_screen(float value) const -> float { return value * board_to_screen; }
+};
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -254,11 +264,13 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         window.begin_frame(clear_colour);
 
         const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
-        const auto mouse_pos_board = glm::vec2{window.mouse_pos()} / board_to_screen;
         const auto window_dimensions_board = window.dimensions() / board_to_screen;
+        const auto top_left = (window_dimensions_board - pool_table.dimensions()) / 2.0f; // board space coord
+        const auto c = converter{ top_left, board_to_screen };
+
+        const auto mouse_pos_board = glm::vec2{window.mouse_pos()} / board_to_screen;
         
         auto& cue_ball = pool_balls[0];
-        const auto top_left = (window_dimensions_board - pool_table.dimensions()) / 2.0f; // board space coord
         const auto aim_direction = glm::normalize(mouse_pos_board - (top_left + cue_ball.pos));
         
         for (const auto event : window.events()) {
@@ -294,17 +306,17 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
                 ball_radius
             );
             if (ray) {
-                const auto dir = glm::normalize(glm::vec2{window.mouse_pos()} - (top_left + cue_ball.pos) * board_to_screen);
-                renderer.push_line((top_left + cue_ball.pos) * board_to_screen, (top_left + cue_ball.pos) * board_to_screen + dir * ray->distance_along_line * board_to_screen, {0, 0, 1, 0.5f}, 2.0f);
-                renderer.push_circle((top_left + ball.pos) * board_to_screen, glm::vec4{0, 1, 1, 1}, ball_radius * board_to_screen);
+                const auto dir = glm::normalize(glm::vec2{window.mouse_pos()} - c.to_screen(cue_ball.pos));
+                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + dir * c.to_screen(ray->distance_along_line), {0, 0, 1, 0.5f}, 2.0f);
+                renderer.push_circle(c.to_screen(ball.pos), glm::vec4{0, 1, 1, 1}, c.to_screen(ball_radius));
             } else {
-                renderer.push_circle((top_left + ball.pos) * board_to_screen, ball.colour, ball_radius * board_to_screen);
+                renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball_radius));
             }
         }
 
         // Draw cue
         
-        renderer.push_line((top_left + cue_ball.pos) * board_to_screen, (top_left + cue_ball.pos) * board_to_screen + aim_direction * 5.0f * board_to_screen, {0, 0, 1, 1}, 2.0f);
+        renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
