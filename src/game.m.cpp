@@ -211,26 +211,27 @@ auto add_triangle(std::vector<ball>& balls, glm::vec2 front_pos)
 
 struct raycast_info
 {
-    float distance_from_line;
-    float distance_along_line;
+    float     distance_from_line;
+    float     distance_along_line;
+    glm::vec2 dir;
 };
 
-auto raycast(glm::vec2 start, glm::vec2 end, glm::vec2 ball_pos, float ball_radius) -> std::optional<raycast_info>
+auto raycast(glm::vec2 start, glm::vec2 end, const ball& b) -> std::optional<raycast_info>
 {
     const auto dir = glm::normalize(end - start);
-    const auto v = ball_pos - start;
+    const auto v = b.pos - start;
     const auto cross = v.x * dir.y - v.y * dir.x;
     const auto distance_from = glm::abs(cross);
-    if (distance_from > 2 * ball_radius) {
+    if (distance_from > 2 * b.radius) { // TODO: Allow for balls of different sizes (pass the cue ball too)
         return {};
     }
 
     const auto distance_along = glm::sqrt(glm::length2(v) - distance_from * distance_from);
-    if (glm::dot(dir, ball_pos - start) < 0) { // only raycast forward
+    if (glm::dot(dir, b.pos - start) < 0) { // only raycast forward
         return {};
     }
 
-    return raycast_info{ distance_from, distance_along };
+    return raycast_info{ distance_from, distance_along, dir };
 }
 
 auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec2 dir) -> std::optional<std::size_t>
@@ -300,15 +301,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         // Draw balls
         int index = 0;
         for (const auto& ball : pool_balls) {
-            const auto ray = raycast(
-                cue_ball.pos,
-                c.to_board(window.mouse_pos()),
-                ball.pos,
-                ball.radius
-            );
-            if (ray) {
-                const auto dir = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos);
-                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos + dir * ray->distance_along_line), {0, 0, 1, 0.5f}, 2.0f);
+            const auto ray = raycast(cue_ball.pos, c.to_board(window.mouse_pos()), ball);
+            if (ray && &ball != &cue_ball) { // TODO: Exclude the cue ball in a better way than this
+                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos + ray->dir * ray->distance_along_line), {0, 0, 1, 0.5f}, 2.0f);
                 renderer.push_circle(c.to_screen(ball.pos), glm::vec4{0, 1, 1, 1}, c.to_screen(ball_radius));
             } else {
                 renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball_radius));
