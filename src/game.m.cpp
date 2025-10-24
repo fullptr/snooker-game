@@ -296,10 +296,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Draw table
-        renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
+        renderer.push_rect(c.to_screen({0, 0}), c.to_screen(pool_table.length), c.to_screen(pool_table.width), board_colour);
 
         // Draw balls
-        int index = 0;
         for (const auto& ball : pool_balls) {
             const auto ray = raycast(cue_ball.pos, c.to_board(window.mouse_pos()), ball);
             if (ray && &ball != &cue_ball) { // TODO: Exclude the cue ball in a better way than this
