@@ -306,8 +306,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
                 ball_radius
             );
             if (ray) {
-                const auto dir = glm::normalize(glm::vec2{window.mouse_pos()} - c.to_screen(cue_ball.pos));
-                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + dir * c.to_screen(ray->distance_along_line), {0, 0, 1, 0.5f}, 2.0f);
+                const auto dir = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos);
+                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos + dir * ray->distance_along_line), {0, 0, 1, 0.5f}, 2.0f);
                 renderer.push_circle(c.to_screen(ball.pos), glm::vec4{0, 1, 1, 1}, c.to_screen(ball_radius));
             } else {
                 renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball_radius));
