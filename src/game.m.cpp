@@ -215,8 +215,9 @@ struct raycast_info
     float distance_along_line;
 };
 
-auto raycast(glm::vec2 start, glm::vec2 dir, glm::vec2 ball_pos, float ball_radius) -> std::optional<raycast_info>
+auto raycast(glm::vec2 start, glm::vec2 end, glm::vec2 ball_pos, float ball_radius) -> std::optional<raycast_info>
 {
+    const auto dir = glm::normalize(end - start);
     const auto v = ball_pos - start;
     const auto cross = v.x * dir.y - v.y * dir.x;
     const auto distance_from = glm::abs(cross);
@@ -301,9 +302,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         for (const auto& ball : pool_balls) {
             const auto ray = raycast(
                 cue_ball.pos,
-                glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos),
+                c.to_board(window.mouse_pos()),
                 ball.pos,
-                ball_radius
+                ball.radius
             );
             if (ray) {
                 const auto dir = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos);
