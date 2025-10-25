@@ -264,14 +264,20 @@ auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec
     return ret;
 }
 
-struct converter
+class converter
 {
-    glm::vec2 top_left;
-    float     board_to_screen;
+    float     d_board_to_screen;
+    glm::vec2 d_top_left;
 
-    auto to_board(glm::vec2 value) const -> glm::vec2 { return value / board_to_screen - top_left; }
-    auto to_screen(glm::vec2 value) const -> glm::vec2 { return (top_left + value) * board_to_screen; }
-    auto to_screen(float value) const -> float { return value * board_to_screen; }
+public:
+    converter(glm::vec2 window_dim, glm::vec2 table_dim, float screen_fill_factor)
+        : d_board_to_screen{(screen_fill_factor * window_dim.x) / table_dim.x}
+        , d_top_left{(window_dim / d_board_to_screen - table_dim) / 2.0f}
+    {}
+
+    auto to_board(glm::vec2 value) const -> glm::vec2 { return value / d_board_to_screen - d_top_left; }
+    auto to_screen(glm::vec2 value) const -> glm::vec2 { return (d_top_left + value) * d_board_to_screen; }
+    auto to_screen(float value) const -> float { return value * d_board_to_screen; }
 };
 
 auto adjust_alpha(glm::vec4 colour, float alpha) -> glm::vec4
@@ -293,20 +299,15 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
     
     double accumulator = 0.0;
-    constexpr double time_step = 1.0 / 60.0;
+    constexpr double time_step = 1.0 / 10.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
-
-        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
-        const auto window_dimensions_board = window.dimensions() / board_to_screen;
-        const auto top_left = (window_dimensions_board - pool_table.dimensions()) / 2.0f; // board space coord
-        const auto c = converter{ top_left, board_to_screen };
-
-        const auto mouse_pos_board = glm::vec2{window.mouse_pos()} / board_to_screen;
+        
+        const auto c = converter{window.dimensions(), pool_table.dimensions(), 0.9f};
         
         auto& cue_ball = pool_balls[0];
-        const auto aim_direction = glm::normalize(mouse_pos_board - (top_left + cue_ball.pos));
+        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos);
         
         for (const auto event : window.events()) {
             ui.on_event(event);
