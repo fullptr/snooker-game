@@ -109,6 +109,7 @@ struct ball
     glm::vec4 colour;
 
     float mass = ball_mass;
+    float radius = ball_radius;
 };
 
 // TODO: handle balls intersecting
@@ -117,21 +118,21 @@ auto update_ball(ball& b, const table& t, float dt) -> void
     b.pos += b.vel * dt;
     b.vel *= 0.98f;
 
-    if (b.pos.x - ball_radius < 0) {
-        b.pos.x = ball_radius;
+    if (b.pos.x - b.radius < 0) {
+        b.pos.x = b.radius;
         b.vel.x = -b.vel.x;
     }
-    if (b.pos.x + ball_radius > t.length) {
-        b.pos.x = t.length - ball_radius;
+    if (b.pos.x + b.radius > t.length) {
+        b.pos.x = t.length - b.radius;
         b.vel.x = -b.vel.x;
     }
 
-    if (b.pos.y - ball_radius < 0) {
-        b.pos.y = ball_radius;
+    if (b.pos.y - b.radius < 0) {
+        b.pos.y = b.radius;
         b.vel.y = -b.vel.y;
     }
-    if (b.pos.y + ball_radius > t.width) {
-        b.pos.y = t.width - ball_radius;
+    if (b.pos.y + b.radius > t.width) {
+        b.pos.y = t.width - b.radius;
         b.vel.y = -b.vel.y;
     }
 }
@@ -139,15 +140,16 @@ auto update_ball(ball& b, const table& t, float dt) -> void
 // TODO: allow for balls of different masses
 auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
 {
-    if (glm::length(a.pos - b.pos) > 2 * ball_radius) {
+    if (glm::length(a.pos - b.pos) > 2 * b.radius) {
         return; // no contact
     }
 
+    
     constexpr auto restitution = 0.8f;
-
+    
     const auto dp = a.pos - b.pos;
     const auto dv = a.vel - b.vel;
-
+    
     if (glm::length2(dp) == 0) {
         return;
     }
@@ -202,6 +204,68 @@ auto add_triangle(std::vector<ball>& balls, glm::vec2 front_pos)
     balls.push_back(ball{ front_pos + 4.0f * left + 4.0f * down, {0.0f, 0.0f}, red });
 }
 
+struct raycast_info
+{
+    float     distance_from_line;
+    float     distance_along_line;
+    glm::vec2 dir;
+};
+
+auto raycast(glm::vec2 start, glm::vec2 end, const ball& b) -> std::optional<raycast_info>
+{
+    const auto dir = glm::normalize(end - start);
+    const auto v = b.pos - start;
+    const auto cross = v.x * dir.y - v.y * dir.x;
+    const auto distance_from = glm::abs(cross);
+    if (distance_from > 2 * b.radius) { // TODO: Allow for balls of different sizes (pass the cue ball too)
+        return {};
+    }
+
+    const auto distance_along = glm::sqrt(glm::length2(v) - distance_from * distance_from);
+    if (glm::dot(dir, b.pos - start) < 0) { // only raycast forward
+        return {};
+    }
+
+    return raycast_info{ distance_from, distance_along, dir };
+}
+
+struct hit_contact
+{
+    std::size_t ball_index;
+    glm::vec2   cue_ball_pos;
+};
+
+auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
+{
+    if (balls.empty()) throw std::runtime_error{"balls should never be empty"}; // TODO: Make this an assert
+    auto ret = std::optional<hit_contact>{};
+    auto distance = std::numeric_limits<std::size_t>::max();
+
+    for (std::size_t i = 1; i != balls.size(); ++i) {
+        const auto ray = raycast(start, end, balls[i]);
+        if (ray) {
+            const auto rad_sum = (balls[0].radius + balls[i].radius); // TODO: Don't rely on the fact that the cue ball is pos 0.
+            const auto new_cue_pos = start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)));
+            const auto ball_dist = glm::length(new_cue_pos - start);
+            if (ball_dist < distance) {
+                distance = ball_dist;
+                ret = hit_contact{ .ball_index=i, .cue_ball_pos=new_cue_pos };
+            }
+        }
+    }
+    return ret;
+}
+
+struct converter
+{
+    glm::vec2 top_left;
+    float     board_to_screen;
+
+    auto to_board(glm::vec2 value) const -> glm::vec2 { return value / board_to_screen - top_left; }
+    auto to_screen(glm::vec2 value) const -> glm::vec2 { return (top_left + value) * board_to_screen; }
+    auto to_screen(float value) const -> float { return value * board_to_screen; }
+};
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -210,18 +274,23 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
-        ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}},
+        ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}, {1, 1, 1, 1}},
     };
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
     
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
+
+        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
+        const auto window_dimensions_board = window.dimensions() / board_to_screen;
+        const auto top_left = (window_dimensions_board - pool_table.dimensions()) / 2.0f; // board space coord
+        const auto c = converter{ top_left, board_to_screen };
+
+        const auto mouse_pos_board = glm::vec2{window.mouse_pos()} / board_to_screen;
         
         auto& cue_ball = pool_balls[0];
-        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
-        const auto top_left = window.dimensions() / 2.0f - pool_table.dimensions() * board_to_screen / 2.0f;
-        const auto aim_direction = -glm::normalize(top_left + cue_ball.pos * board_to_screen - glm::vec2{window.mouse_pos()});
+        const auto aim_direction = glm::normalize(mouse_pos_board - (top_left + cue_ball.pos));
         
         for (const auto event : window.events()) {
             ui.on_event(event);
@@ -244,16 +313,21 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Draw table
-        renderer.push_quad({window.width() / 2, window.height() / 2}, pool_table.length * board_to_screen, pool_table.width * board_to_screen, 0, board_colour);
+        renderer.push_rect(c.to_screen({0, 0}), c.to_screen(pool_table.length), c.to_screen(pool_table.width), board_colour);
 
         // Draw balls
-        for (const auto& ball : pool_balls) {
-            renderer.push_circle(top_left + ball.pos * board_to_screen, ball.colour, ball_radius * board_to_screen);
+        const auto contact_ball = find_contact_ball(pool_balls, cue_ball.pos, c.to_board(window.mouse_pos()));
+        for (std::size_t i = 0; i != pool_balls.size(); ++i) {
+            const auto& ball = pool_balls[i];
+            if (contact_ball && contact_ball->ball_index == i) { // TODO: Exclude the cue ball in a better way than this
+                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
+                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, c.to_screen(cue_ball.radius)); // TODO: Get the colour from the cue ball
+            }
+            renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball.radius));
         }
-        renderer.push_circle(top_left + cue_ball.pos * board_to_screen, {1, 1, 1, 1}, ball_radius * board_to_screen);
 
         // Draw cue
-        renderer.push_line(top_left + cue_ball.pos * board_to_screen, top_left + cue_ball.pos * board_to_screen + aim_direction * 5.0f * board_to_screen, {0, 0, 1, 1}, 2.0f);
+        renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
