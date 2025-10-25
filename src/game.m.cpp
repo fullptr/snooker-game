@@ -148,7 +148,7 @@ auto update_ball(ball& b, const table& t, float dt) -> void
 // TODO: handle balls intersecting (tunnelling)
 auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
 {
-    if (glm::length(a.pos - b.pos) > 2 * b.radius) {
+    if (glm::length(a.pos - b.pos) > (a.radius + b.radius)) {
         return; // no contact
     }
 
