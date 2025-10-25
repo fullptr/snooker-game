@@ -18,6 +18,7 @@
 #include <ranges>
 #include <unordered_map>
 #include <unordered_set>
+#include <source_location>
 
 using namespace snooker;
 
@@ -33,6 +34,14 @@ constexpr auto ball_radius = 2.54f; // english pool bool cm == 1 inch
 constexpr auto ball_mass = 140.0f; // grams
 constexpr auto board_colour = from_hex(0x3db81e);
 constexpr auto break_speed = 983.49f; // cm
+
+auto assert_that(bool condition, std::string_view message = {}, std::source_location loc = std::source_location::current()) -> void
+{
+    if (!condition) {
+        std::print("FAILED ASSERTION: ({}) {}\n", loc.line(), message);
+        std::terminate();
+    }
+}
 
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
@@ -112,12 +121,11 @@ struct ball
     float radius = ball_radius;
 };
 
-// TODO: handle balls intersecting
 auto update_ball(ball& b, const table& t, float dt) -> void
 {
     b.pos += b.vel * dt;
     b.vel *= 0.98f;
-
+    
     if (b.pos.x - b.radius < 0) {
         b.pos.x = b.radius;
         b.vel.x = -b.vel.x;
@@ -126,7 +134,7 @@ auto update_ball(ball& b, const table& t, float dt) -> void
         b.pos.x = t.length - b.radius;
         b.vel.x = -b.vel.x;
     }
-
+    
     if (b.pos.y - b.radius < 0) {
         b.pos.y = b.radius;
         b.vel.y = -b.vel.y;
@@ -137,14 +145,13 @@ auto update_ball(ball& b, const table& t, float dt) -> void
     }
 }
 
-// TODO: allow for balls of different masses
+// TODO: handle balls intersecting (tunnelling)
 auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
 {
     if (glm::length(a.pos - b.pos) > 2 * b.radius) {
         return; // no contact
     }
 
-    
     constexpr auto restitution = 0.8f;
     
     const auto dp = a.pos - b.pos;
@@ -211,13 +218,13 @@ struct raycast_info
     glm::vec2 dir;
 };
 
-auto raycast(glm::vec2 start, glm::vec2 end, const ball& b) -> std::optional<raycast_info>
+auto raycast(glm::vec2 start, glm::vec2 end, const ball& cue_ball, const ball& b) -> std::optional<raycast_info>
 {
     const auto dir = glm::normalize(end - start);
     const auto v = b.pos - start;
     const auto cross = v.x * dir.y - v.y * dir.x;
     const auto distance_from = glm::abs(cross);
-    if (distance_from > 2 * b.radius) { // TODO: Allow for balls of different sizes (pass the cue ball too)
+    if (distance_from > (cue_ball.radius + b.radius)) {
         return {};
     }
 
@@ -237,14 +244,15 @@ struct hit_contact
 
 auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
 {
-    if (balls.empty()) throw std::runtime_error{"balls should never be empty"}; // TODO: Make this an assert
+    assert_that(!balls.empty(), "balls should never be empty");
+
     auto ret = std::optional<hit_contact>{};
     auto distance = std::numeric_limits<std::size_t>::max();
 
     for (std::size_t i = 1; i != balls.size(); ++i) {
-        const auto ray = raycast(start, end, balls[i]);
+        const auto ray = raycast(start, end, balls[0], balls[i]);
         if (ray) {
-            const auto rad_sum = (balls[0].radius + balls[i].radius); // TODO: Don't rely on the fact that the cue ball is pos 0.
+            const auto rad_sum = (balls[0].radius + balls[i].radius);
             const auto new_cue_pos = start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)));
             const auto ball_dist = glm::length(new_cue_pos - start);
             if (ball_dist < distance) {
@@ -266,6 +274,12 @@ struct converter
     auto to_screen(float value) const -> float { return value * board_to_screen; }
 };
 
+auto adjust_alpha(glm::vec4 colour, float alpha) -> glm::vec4
+{
+    colour.a = alpha;
+    return colour;
+}
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -274,7 +288,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     auto pool_balls = std::vector{
-        ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}, {1, 1, 1, 1}},
+        ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}, {1, 1, 1, 1}}, // ball 0 is always the cue ball
     };
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
     
@@ -301,7 +315,6 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             }
         }
 
-        // TODO: Fix the time step of the simulation with an accumulator
         accumulator += dt;
         while (accumulator > time_step) {
             // Update ball positions
@@ -323,11 +336,11 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         // Draw balls
         const auto contact_ball = find_contact_ball(pool_balls, cue_ball.pos, c.to_board(window.mouse_pos()));
-        for (std::size_t i = 0; i != pool_balls.size(); ++i) {
+        for (std::size_t i = 0; i != pool_balls.size(); ++i) { // This assumes that balls[0] is the cue ball
             const auto& ball = pool_balls[i];
-            if (contact_ball && contact_ball->ball_index == i) { // TODO: Exclude the cue ball in a better way than this
+            if (contact_ball && contact_ball->ball_index == i) {
                 renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
-                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, c.to_screen(cue_ball.radius)); // TODO: Get the colour from the cue ball
+                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(cue_ball.colour, 0.5f), c.to_screen(cue_ball.radius));
             }
             renderer.push_circle(c.to_screen(ball.pos), ball.colour, c.to_screen(ball.radius));
         }
