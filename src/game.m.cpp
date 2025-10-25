@@ -278,6 +278,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     };
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
     
+    double accumulator = 0.0;
+    constexpr double time_step = 1.0 / 60.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
@@ -300,17 +302,21 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // TODO: Fix the time step of the simulation with an accumulator
-
-        // Update ball positions
-        for (std::size_t i = 0; i != pool_balls.size(); ++i) {
-            for (std::size_t j = i + 1; j != pool_balls.size(); ++j) {
-                update_ball_collision(pool_balls[i], pool_balls[j], pool_table, (float)dt);
+        accumulator += dt;
+        while (accumulator > time_step) {
+            // Update ball positions
+            for (std::size_t i = 0; i != pool_balls.size(); ++i) {
+                for (std::size_t j = i + 1; j != pool_balls.size(); ++j) {
+                    update_ball_collision(pool_balls[i], pool_balls[j], pool_table, time_step);
+                }
             }
+    
+            for (auto& ball : pool_balls) {
+                update_ball(ball, pool_table, time_step);
+            }
+            accumulator -= time_step;
         }
 
-        for (auto& ball : pool_balls) {
-            update_ball(ball, pool_table, (float)dt);
-        }
 
         // Draw table
         renderer.push_rect(c.to_screen({0, 0}), c.to_screen(pool_table.length), c.to_screen(pool_table.width), board_colour);
