@@ -288,6 +288,69 @@ auto adjust_alpha(glm::vec4 colour, float alpha) -> glm::vec4
     return colour;
 }
 
+auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
+{
+    assert_that(balls.size() >= 2, "simulation needs more than two balls for now, but it should handle the case of a single ball at some point");
+    auto remaining_dt = dt;
+
+    struct collision_data
+    {
+        std::size_t i, j;
+        float timestep;
+    };
+
+    while (remaining_dt > 0) {
+        auto collision = std::optional<collision_data>{};
+    
+        for (std::size_t i = 0; i != balls.size(); ++i) {
+            for (std::size_t j = i + 1; j != balls.size(); ++j) {
+                const auto& A = balls[i];
+                const auto& B = balls[j];
+                
+                const auto p = B.pos - A.pos; // relative position
+                const auto v = B.vel - A.vel; // relative velocity
+                const auto r = A.radius + B.radius; // radius sum
+                
+                // Need to solve ||p + v*t||^2 == r^2 for t
+                // (v.v)t^2 + 2(p.v)t + (p.p) == r^2
+                // (v.v)t^2 + 2(p.v)t + ((p.p) - r^2) == 0
+                // a = (v.v), b = 2(p.v), c = (p.p)-r^2
+    
+                // t = (-b +- sqrt(b^2 - 4ac)) / 2a
+                const auto a = glm::dot(v, v);
+                const auto b = 2 * glm::dot(p, v);
+                const auto c = glm::dot(p, p) - r * r;
+    
+                const auto discriminant = b*b - 4*a*c;
+                if (discriminant <= 0) {
+                    continue; // no collision
+                }
+    
+                const auto t1 = (-b + glm::sqrt(discriminant)) / 2*a;
+                const auto t2 = (-b - glm::sqrt(discriminant)) / 2*a;
+                const auto t = glm::min(t1, t2); // can this be negative?
+                assert_that(t > 0, "the timestep here is of a collision, this should be in the future, and this should never happen");
+    
+                if (!collision || t < collision->timestep) {
+                    collision = collision_data{ .i = i, .j = j, .timestep = t};
+                }
+            }
+        }
+    
+        // Advance each ball up to the collision
+        auto timestep = remaining_dt;
+        if (collision && collision->timestep < remaining_dt)
+        for (auto& ball : balls) {
+            update_ball(ball, t, timestep);
+        }
+    
+        // Resolve collision
+        // ...
+
+        remaining_dt -= timestep;
+    }
+}
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -299,6 +362,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}, {1, 1, 1, 1}}, // ball 0 is always the cue ball
     };
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
+
     
     double accumulator = 0.0;
     constexpr double time_step = 1.0 / 10.0;
@@ -320,16 +384,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         accumulator += dt;
         while (accumulator > time_step) {
-            // Update ball positions
-            for (std::size_t i = 0; i != pool_balls.size(); ++i) {
-                for (std::size_t j = i + 1; j != pool_balls.size(); ++j) {
-                    update_ball_collision(pool_balls[i], pool_balls[j], pool_table, time_step);
-                }
-            }
-    
-            for (auto& ball : pool_balls) {
-                update_ball(ball, pool_table, time_step);
-            }
+            step_simulation(pool_table, pool_balls, time_step);
             accumulator -= time_step;
         }
 
