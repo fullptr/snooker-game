@@ -5,6 +5,9 @@
 #include "renderer.hpp"
 #include "ui.hpp"
 
+#include "table.hpp"
+#include "simulation.hpp"
+
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
@@ -29,20 +32,6 @@ enum class next_state
     game,
     exit,
 };
-
-constexpr auto clear_colour = snooker::from_hex(0x222f3e);
-constexpr auto ball_radius = 2.54f; // english pool bool cm == 1 inch
-constexpr auto ball_mass = 140.0f; // grams
-constexpr auto board_colour = from_hex(0x3db81e);
-constexpr auto break_speed = 983.49f; // cm
-
-auto assert_that(bool condition, std::string_view message = {}, std::source_location loc = std::source_location::current()) -> void
-{
-    if (!condition) {
-        std::print("FAILED ASSERTION: ({}) {}\n", loc.line(), message);
-        std::terminate();
-    }
-}
 
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
@@ -101,82 +90,6 @@ auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> ne
     }
 
     return next_state::exit;
-}
-
-// dimensions are an english pool table in cm (6ft x 3ft)
-struct table
-{
-    f32 length;
-    f32 width;
-
-    auto dimensions() -> glm::vec2 { return {length, width}; }
-};
-
-struct ball
-{
-    glm::vec2 pos;
-    glm::vec2 vel;
-    glm::vec4 colour;
-
-    float mass = ball_mass;
-    float radius = ball_radius;
-};
-
-auto update_ball(ball& b, const table& t, float dt) -> void
-{
-    assert_that(dt > 0, "dt should always be an advancement into the future");
-    const auto k = 1.5f;
-    b.vel *= std::pow(std::numbers::e, (- k * dt));
-    b.pos += b.vel * dt;
-    
-    if (b.pos.x - b.radius < 0) {
-        b.pos.x = b.radius;
-        b.vel.x = -b.vel.x;
-    }
-    if (b.pos.x + b.radius > t.length) {
-        b.pos.x = t.length - b.radius;
-        b.vel.x = -b.vel.x;
-    }
-    
-    if (b.pos.y - b.radius < 0) {
-        b.pos.y = b.radius;
-        b.vel.y = -b.vel.y;
-    }
-    if (b.pos.y + b.radius > t.width) {
-        b.pos.y = t.width - b.radius;
-        b.vel.y = -b.vel.y;
-    }
-}
-
-auto resolve_collision(ball& a, ball& b, const table& t) -> void
-{
-    constexpr auto restitution = 0.8f;
-    
-    const auto dp = a.pos - b.pos;
-    const auto dv = a.vel - b.vel;
-    
-    if (glm::length2(dp) == 0) {
-        return;
-    }
-
-    const auto length2 = glm::dot(dp, dp);
-    if (length2 == 0.0f) {
-        return; // avoid division by zero
-    }
-
-    const auto normal = glm::normalize(dp);
-    const auto vel_along_normal = glm::dot(dv, normal);
-
-    if (vel_along_normal >= 0.0f) {
-        return; // moving away so no need to resolve
-    }
-
-    const auto inverse_mass = (1.0f / a.mass) + (1.0f / b.mass);
-    const auto impulse_size = -(1.0f + restitution) * vel_along_normal / inverse_mass;
-    const auto impulse = impulse_size * normal;
-
-    a.vel += impulse / a.mass;
-    b.vel -= impulse / b.mass;
 }
 
 auto add_triangle(std::vector<ball>& balls, glm::vec2 front_pos)
@@ -284,115 +197,6 @@ auto adjust_alpha(glm::vec4 colour, float alpha) -> glm::vec4
     return colour;
 }
 
-auto get_timestep(float t1, float t2, float dt) -> std::optional<float>
-{
-    const auto maybe_t1 = 0 < t1 && t1 <= dt;
-    const auto maybe_t2 = 0 < t2 && t2 <= dt;
-    if (maybe_t1 && maybe_t2) { return glm::min(t1, t2); }
-    if (maybe_t1) return t1;
-    if (maybe_t2) return t2;
-    return {};
-}
-
-struct collision_data
-{
-    std::size_t i, j;
-    float timestep;
-};
-
-auto get_collisions(const std::vector<ball>& balls, float remaining_dt) -> std::optional<collision_data>
-{
-    auto collision = std::optional<collision_data>{};
-    
-    for (std::size_t i = 0; i != balls.size(); ++i) {
-        for (std::size_t j = i + 1; j != balls.size(); ++j) {
-            const auto& A = balls[i];
-            const auto& B = balls[j];
-            
-            const auto p = B.pos - A.pos; // relative position
-            const auto v = B.vel - A.vel; // relative velocity
-            const auto r = A.radius + B.radius; // radius sum
-            if (glm::length(v) == 0) {
-                continue; // no velocity, so no collision can happen
-            }
-            assert_that(glm::length(v) > 0, std::format("the velocity should be positive at this point {}, {}", v.x, v.y));
-            
-            // Need to solve ||p + v*t||^2 == r^2 for t
-            // (v.v)t^2 + 2(p.v)t + (p.p) == r^2
-            // (v.v)t^2 + 2(p.v)t + ((p.p) - r^2) == 0
-            // a = (v.v), b = 2(p.v), c = (p.p)-r^2
-            
-            // t = (-b +- sqrt(b^2 - 4ac)) / 2a
-            const auto a = glm::dot(v, v);
-            const auto b = 2 * glm::dot(p, v);
-            const auto c = glm::dot(p, p) - r * r;
-            assert_that(a != 0, "we divide by 2a, so a should be non-zero");
-            
-            const auto discriminant = b*b - 4*a*c;
-            if (discriminant <= 0) {
-                continue; // no collision
-            }
-            
-            const auto t1 = (-b + glm::sqrt(discriminant)) / (2*a);
-            const auto t2 = (-b - glm::sqrt(discriminant)) / (2*a);
-            const auto t = get_timestep(t1, t2, remaining_dt);
-            if (!t) continue;
-
-            if (collision && collision->timestep == *t) {
-                std::print("{} {}\n", collision->timestep, *t);
-            }
-            if (!collision || *t < collision->timestep) {
-                collision = collision_data{ .i = i, .j = j, .timestep = *t};
-            }
-        }
-    }
-
-    return collision;
-}
-
-auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
-{
-    assert_that(balls.size() >= 2, "simulation needs more than two balls for now, but it should handle the case of a single ball at some point");
-    auto remaining_dt = dt;
-
-    struct collision_data
-    {
-        std::size_t i, j;
-        float timestep;
-    };
-
-    static constexpr auto epsilon = 0.001f;
-
-    int iterations = 50;
-    while (remaining_dt > 0 && iterations > 0) {
-        const auto collision = get_collisions(balls, remaining_dt);
-    
-        // Advance each ball up to the collision
-        auto timestep = remaining_dt;
-        auto handle_collision = false;
-        auto ct = 0.0;
-        if (collision && collision->timestep < remaining_dt) {
-            handle_collision = true;
-            timestep = collision->timestep;
-            ct = collision->timestep;
-        }
-        timestep = glm::max(timestep, epsilon);
-
-        assert_that(timestep > 0, "timestep should always be positive");
-        for (auto& ball : balls) {
-            update_ball(ball, t, timestep);
-        }
-    
-        // Resolve collision
-        if (handle_collision) {
-            resolve_collision(balls[collision->i], balls[collision->j], t);
-        }
-
-        remaining_dt -= timestep;
-        iterations--;
-    }
-}
-
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -426,7 +230,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         accumulator += dt;
         while (accumulator > time_step) {
-            step_simulation(pool_table, pool_balls, time_step);
+            
+            step_simulation(pool_balls, dt, 0, 0, pool_table.length, pool_table.width);
+            //step_simulation(pool_table, pool_balls, time_step);
             accumulator -= time_step;
         }
 
