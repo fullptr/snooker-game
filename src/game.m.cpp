@@ -330,6 +330,62 @@ auto get_timestep(float t1, float t2, float dt) -> std::optional<float>
     return {};
 }
 
+struct collision_data
+{
+    std::size_t i, j;
+    float timestep;
+};
+
+auto get_collisions(const std::vector<ball>& balls, float remaining_dt) -> std::optional<collision_data>
+{
+    auto collision = std::optional<collision_data>{};
+    
+    for (std::size_t i = 0; i != balls.size(); ++i) {
+        for (std::size_t j = i + 1; j != balls.size(); ++j) {
+            const auto& A = balls[i];
+            const auto& B = balls[j];
+            
+            const auto p = B.pos - A.pos; // relative position
+            const auto v = B.vel - A.vel; // relative velocity
+            const auto r = A.radius + B.radius; // radius sum
+            if (glm::length(v) == 0) {
+                continue; // no velocity, so no collision can happen
+            }
+            assert_that(glm::length(v) > 0, std::format("the velocity should be positive at this point {}, {}", v.x, v.y));
+            
+            // Need to solve ||p + v*t||^2 == r^2 for t
+            // (v.v)t^2 + 2(p.v)t + (p.p) == r^2
+            // (v.v)t^2 + 2(p.v)t + ((p.p) - r^2) == 0
+            // a = (v.v), b = 2(p.v), c = (p.p)-r^2
+            
+            // t = (-b +- sqrt(b^2 - 4ac)) / 2a
+            const auto a = glm::dot(v, v);
+            const auto b = 2 * glm::dot(p, v);
+            const auto c = glm::dot(p, p) - r * r;
+            assert_that(a != 0, "we divide by 2a, so a should be non-zero");
+            
+            const auto discriminant = b*b - 4*a*c;
+            if (discriminant <= 0) {
+                continue; // no collision
+            }
+            
+            const auto t1 = (-b + glm::sqrt(discriminant)) / (2*a);
+            const auto t2 = (-b - glm::sqrt(discriminant)) / (2*a);
+            const auto t = get_timestep(t1, t2, remaining_dt);
+            if (!t) continue;
+
+            if (collision && collision->timestep == *t) {
+                std::print("{} {}\n", collision->timestep, *t);
+            }
+            if (!collision || *t < collision->timestep) {
+                collision = collision_data{ .i = i, .j = j, .timestep = *t};
+            }
+        }
+    }
+
+    return collision;
+}
+
 auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
 {
     assert_that(balls.size() >= 2, "simulation needs more than two balls for now, but it should handle the case of a single ball at some point");
@@ -341,48 +397,9 @@ auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
         float timestep;
     };
 
-    while (remaining_dt > 0) {
-        auto collision = std::optional<collision_data>{};
-    
-        for (std::size_t i = 0; i != balls.size(); ++i) {
-            for (std::size_t j = i + 1; j != balls.size(); ++j) {
-                const auto& A = balls[i];
-                const auto& B = balls[j];
-                
-                const auto p = B.pos - A.pos; // relative position
-                const auto v = B.vel - A.vel; // relative velocity
-                const auto r = A.radius + B.radius; // radius sum
-                if (glm::length(v) == 0) {
-                    continue; // no velocity, so no collision can happen
-                }
-                assert_that(glm::length(v) > 0, std::format("the velocity should be positive at this point {}, {}", v.x, v.y));
-                
-                // Need to solve ||p + v*t||^2 == r^2 for t
-                // (v.v)t^2 + 2(p.v)t + (p.p) == r^2
-                // (v.v)t^2 + 2(p.v)t + ((p.p) - r^2) == 0
-                // a = (v.v), b = 2(p.v), c = (p.p)-r^2
-                
-                // t = (-b +- sqrt(b^2 - 4ac)) / 2a
-                const auto a = glm::dot(v, v);
-                const auto b = 2 * glm::dot(p, v);
-                const auto c = glm::dot(p, p) - r * r;
-                assert_that(a != 0, "we divide by 2a, so a should be non-zero");
-                
-                const auto discriminant = b*b - 4*a*c;
-                if (discriminant <= 0) {
-                    continue; // no collision
-                }
-                
-                const auto t1 = (-b + glm::sqrt(discriminant)) / (2*a);
-                const auto t2 = (-b - glm::sqrt(discriminant)) / (2*a);
-                const auto t = get_timestep(t1, t2, remaining_dt);
-                if (!t) continue;
-    
-                if (!collision || *t < collision->timestep) {
-                    collision = collision_data{ .i = i, .j = j, .timestep = *t};
-                }
-            }
-        }
+    int iterations = 50;
+    while (remaining_dt > 0 && iterations > 0) {
+        const auto collision = get_collisions(balls, remaining_dt);
     
         // Advance each ball up to the collision
         auto timestep = remaining_dt;
@@ -393,7 +410,7 @@ auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
             timestep = collision->timestep;
             ct = collision->timestep;
         }
-        std::print("timestep = {}, remaining_dt = {}, ct = {}\n", timestep, remaining_dt, ct);
+
         assert_that(timestep > 0, "timestep should always be positive");
         for (auto& ball : balls) {
             update_ball(ball, t, timestep);
@@ -405,6 +422,7 @@ auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
         }
 
         remaining_dt -= timestep;
+        iterations--;
     }
 }
 
