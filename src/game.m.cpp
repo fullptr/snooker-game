@@ -211,7 +211,6 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
     
     double accumulator = 0.0;
-    constexpr double time_step = 1.0 / 60.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
@@ -229,9 +228,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         accumulator += dt;
-        while (accumulator > time_step) {
+        while (accumulator > step) {
             step_simulation(pool_balls, dt, 0, 0, pool_table.length, pool_table.width);
-            accumulator -= time_step;
+            accumulator -= step;
         }
 
 

@@ -165,12 +165,11 @@ void fix_positions(std::vector<ball>& circles, const std::vector<contact>& conta
                 circles[c.a].vel -= (1.0f + restitution) * vn * c.normal;
             }
         } else { // circle to circle
-            const auto invA = 1.0f / circles[c.a].mass;
-            const auto invB = 1.0f / circles[c.b].mass;
-            const auto totalInv = invA + invB;
-            glm::vec2 correction = c.penetration * 0.4f * c.normal / totalInv;
-            circles[c.a].pos -= invA * correction;
-            circles[c.b].pos += invB * correction;
+            const auto inv_a = circles[c.a].inv_mass();
+            const auto inv_b = circles[c.b].inv_mass();
+            const auto correction = c.penetration * 0.4f * c.normal / (inv_a + inv_b);
+            circles[c.a].pos -= inv_a * correction;
+            circles[c.b].pos += inv_b * correction;
         }
     }
 }
@@ -181,8 +180,9 @@ void step_simulation(std::vector<ball>& circles, float dt,
                       float xmin, float ymin, float xmax, float ymax)
 {
     // 1. integrate positions
-    for (auto& c : circles)
+    for (auto& c : circles) {
         c.pos += c.vel * dt;
+    }
 
     // 2. generate contacts
     auto contacts = generate_contacts(circles, xmin, ymin, xmax, ymax);
