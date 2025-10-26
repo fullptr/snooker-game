@@ -52,8 +52,15 @@ void solve_contacts(std::vector<ball>& balls,
                     const std::vector<contact>& contacts,
                     float restitution = 0.8f)
 {
-    int N = (int)contacts.size();
-    if (N == 0) return;
+    const auto N = contacts.size();
+    if (N == 0) {
+        return;
+    }
+
+    // set up equation A*j = b, where A is the constraint matrix, j is the unknown
+    // impulse vector, and b is the desired velocity change (the bias term).
+    // to do this, start with A*b and use Gaussian elimination, which results in b
+    // turning into j
 
     std::vector<float> A(N * N, 0.0f);
     std::vector<float> b(N, 0.0f);
@@ -78,20 +85,20 @@ void solve_contacts(std::vector<ball>& balls,
             const auto& cj = contacts[j];
             const auto a2 = cj.a;
             const auto b2 = cj.b;
-            glm::vec2 n_j = cj.normal;
+            const auto normal_j = cj.normal;
 
             auto val = 0.0f;
             if (a1 == a2) {
-                val += glm::dot(normal_i, n_j) * balls[a1].inv_mass();
+                val += glm::dot(normal_i, normal_j) * balls[a1].inv_mass();
             }
             if (b1 >= 0 && b1 == a2) {
-                val -= glm::dot(normal_i, n_j) * balls[b1].inv_mass();
+                val -= glm::dot(normal_i, normal_j) * balls[b1].inv_mass();
             }
             if (a1 == b2) {
-                val -= glm::dot(normal_i, n_j) * balls[a1].inv_mass();
+                val -= glm::dot(normal_i, normal_j) * balls[a1].inv_mass();
             }
             if (b1 >= 0 && b1 == b2) {
-                val += glm::dot(normal_i, n_j) * balls[b1].inv_mass();
+                val += glm::dot(normal_i, normal_j) * balls[b1].inv_mass();
             }
 
             A[i * N + j] = val;
@@ -99,7 +106,6 @@ void solve_contacts(std::vector<ball>& balls,
     }
 
     // naive Gaussian elimination
-    std::vector<float> j(N, 0.0f);
     for (int k = 0; k < N; ++k) {
         const auto diag = A[k * N + k];
         if (glm::abs(diag) < 1e-8f) {
@@ -120,15 +126,15 @@ void solve_contacts(std::vector<ball>& balls,
             b[row] -= factor * b[k];
         }
     }
-    j = b;
+    auto& j = b; // in reduced echelon form, b now stores j
 
     // clamp impulses to prevent negative push
     for (int i = 0; i < N; ++i) {
         const contact& c = contacts[i];
         if (c.b < 0) { // wall
-            float vn = glm::dot(balls[c.a].vel, c.normal);
-            float maxImpulse = balls[c.a].mass * std::max(0.0f, -vn);
-            j[i] = std::min(j[i], maxImpulse);
+            const auto vn = glm::dot(balls[c.a].vel, c.normal);
+            const auto max_impulse = balls[c.a].mass * std::max(0.0f, -vn);
+            j[i] = std::min(j[i], max_impulse);
         }
         j[i] = std::max(0.0f, j[i]);
     }
@@ -152,7 +158,7 @@ void fix_positions(std::vector<ball>& circles, const std::vector<contact>& conta
             const auto percent = 0.2f;
             circles[c.a].pos += c.normal * c.penetration * percent;
 
-            // nounce along wall using restitution
+            // bounce along wall using restitution
             const auto vn = glm::dot(circles[c.a].vel, c.normal);
             if (vn < 0.0f) {
                 const auto restitution = 0.8f;

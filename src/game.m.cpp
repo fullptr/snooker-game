@@ -230,9 +230,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         accumulator += dt;
         while (accumulator > time_step) {
-            
             step_simulation(pool_balls, dt, 0, 0, pool_table.length, pool_table.width);
-            //step_simulation(pool_table, pool_balls, time_step);
             accumulator -= time_step;
         }
 
