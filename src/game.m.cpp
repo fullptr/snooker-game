@@ -148,42 +148,6 @@ auto update_ball(ball& b, const table& t, float dt) -> void
     }
 }
 
-// TODO: handle balls intersecting (tunnelling)
-auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
-{
-    if (glm::length(a.pos - b.pos) > (a.radius + b.radius)) {
-        return; // no contact
-    }
-
-    constexpr auto restitution = 0.8f;
-    
-    const auto dp = a.pos - b.pos;
-    const auto dv = a.vel - b.vel;
-    
-    if (glm::length2(dp) == 0) {
-        return;
-    }
-
-    const auto length2 = glm::dot(dp, dp);
-    if (length2 == 0.0f) {
-        return; // avoid division by zero
-    }
-
-    const auto normal = glm::normalize(dp);
-    const auto vel_along_normal = glm::dot(dv, normal);
-
-    if (vel_along_normal >= 0.0f) {
-        return; // moving away so no need to resolve
-    }
-
-    const auto inverse_mass = (1.0f / a.mass) + (1.0f / b.mass);
-    const auto impulse_size = -(1.0f + restitution) * vel_along_normal / inverse_mass;
-    const auto impulse = impulse_size * normal;
-
-    a.vel += impulse / a.mass;
-    b.vel -= impulse / b.mass;
-}
-
 auto resolve_collision(ball& a, ball& b, const table& t) -> void
 {
     constexpr auto restitution = 0.8f;
@@ -226,23 +190,23 @@ auto add_triangle(std::vector<ball>& balls, glm::vec2 front_pos)
 
     balls.push_back(ball{ front_pos + 0.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
 
-    //balls.push_back(ball{ front_pos + 1.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 1.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-//
-    //balls.push_back(ball{ front_pos + 2.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 2.0f * left + 1.0f * down, {0.0f, 0.0f}, blk });
-    //balls.push_back(ball{ front_pos + 2.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-//
-    //balls.push_back(ball{ front_pos + 3.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 3.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 3.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 3.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
-//
-    //balls.push_back(ball{ front_pos + 4.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 4.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 1.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 1.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+
+    balls.push_back(ball{ front_pos + 2.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 2.0f * left + 1.0f * down, {0.0f, 0.0f}, blk });
+    balls.push_back(ball{ front_pos + 2.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+
+    balls.push_back(ball{ front_pos + 3.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 3.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 3.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 3.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
+
+    balls.push_back(ball{ front_pos + 4.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 4.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 4.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
+    balls.push_back(ball{ front_pos + 4.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
+    balls.push_back(ball{ front_pos + 4.0f * left + 4.0f * down, {0.0f, 0.0f}, red });
 }
 
 struct raycast_info
@@ -397,6 +361,8 @@ auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
         float timestep;
     };
 
+    static constexpr auto epsilon = 0.001f;
+
     int iterations = 50;
     while (remaining_dt > 0 && iterations > 0) {
         const auto collision = get_collisions(balls, remaining_dt);
@@ -410,6 +376,7 @@ auto step_simulation(table& t, std::vector<ball>& balls, float dt) -> void
             timestep = collision->timestep;
             ct = collision->timestep;
         }
+        timestep = glm::max(timestep, epsilon);
 
         assert_that(timestep > 0, "timestep should always be positive");
         for (auto& ball : balls) {
