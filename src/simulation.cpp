@@ -49,27 +49,23 @@ std::vector<contact> generate_contacts(const std::vector<ball>& circles,
 }
 
 void solve_contacts(std::vector<ball>& balls,
-                                 const std::vector<contact>& contacts,
-                                 float restitution = 0.8f)
+                    const std::vector<contact>& contacts,
+                    float restitution = 0.8f)
 {
     int N = (int)contacts.size();
     if (N == 0) return;
-
-    std::vector<float> invMass(balls.size());
-    for (size_t i = 0; i < balls.size(); ++i)
-        invMass[i] = (balls[i].mass > 0.0f) ? 1.0f / balls[i].mass : 0.0f;
 
     std::vector<float> A(N * N, 0.0f);
     std::vector<float> b(N, 0.0f);
 
     for (int i = 0; i < N; ++i) {
-        const contact& ci = contacts[i];
-        const auto body_a = ci.a;
-        const auto body_b = ci.b;
-        glm::vec2 n_i = ci.normal;
+        const auto& ci = contacts[i];
+        const auto a1 = ci.a;
+        const auto b1 = ci.b;
+        const auto normal_i = ci.normal;
 
-        glm::vec2 rv = (body_b >= 0 ? balls[body_b].vel : glm::vec2(0)) - balls[body_a].vel;
-        const auto rel_vel = glm::dot(rv, n_i);
+        const auto rv = (b1 >= 0 ? balls[b1].vel : glm::vec2(0)) - balls[a1].vel;
+        const auto rel_vel = glm::dot(rv, normal_i);
 
         // only apply restitution if moving into contact
         b[i] = (rel_vel < -1e-6f) ? -(1.0f + restitution) * rel_vel : 0.0f;
@@ -79,16 +75,24 @@ void solve_contacts(std::vector<ball>& balls,
 
         // Fill constraint matrix
         for (int j = 0; j < N; ++j) {
-            const contact& cj = contacts[j];
-            int a2 = cj.a;
-            int b2 = cj.b;
+            const auto& cj = contacts[j];
+            const auto a2 = cj.a;
+            const auto b2 = cj.b;
             glm::vec2 n_j = cj.normal;
 
-            float val = 0.0f;
-            if (body_a == a2) val += glm::dot(n_i, n_j) * invMass[body_a];
-            if (body_b >= 0 && body_b == a2) val -= glm::dot(n_i, n_j) * invMass[body_b];
-            if (body_a == b2) val -= glm::dot(n_i, n_j) * invMass[body_a];
-            if (body_b >= 0 && body_b == b2) val += glm::dot(n_i, n_j) * invMass[body_b];
+            auto val = 0.0f;
+            if (a1 == a2) {
+                val += glm::dot(normal_i, n_j) * balls[a1].inv_mass();
+            }
+            if (b1 >= 0 && b1 == a2) {
+                val -= glm::dot(normal_i, n_j) * balls[b1].inv_mass();
+            }
+            if (a1 == b2) {
+                val -= glm::dot(normal_i, n_j) * balls[a1].inv_mass();
+            }
+            if (b1 >= 0 && b1 == b2) {
+                val += glm::dot(normal_i, n_j) * balls[b1].inv_mass();
+            }
 
             A[i * N + j] = val;
         }
@@ -97,18 +101,22 @@ void solve_contacts(std::vector<ball>& balls,
     // naive Gaussian elimination
     std::vector<float> j(N, 0.0f);
     for (int k = 0; k < N; ++k) {
-        float diag = A[k * N + k];
-        if (glm::abs(diag) < 1e-8f) continue;
-        float invDiag = 1.0f / diag;
-        for (int col = k; col < N; ++col)
-            A[k * N + col] *= invDiag;
-        b[k] *= invDiag;
+        const auto diag = A[k * N + k];
+        if (glm::abs(diag) < 1e-8f) {
+            continue;
+        }
+        const auto inv_diag = 1.0f / diag;
+        for (int col = k; col < N; ++col) {
+            A[k * N + col] *= inv_diag;
+        }
+        b[k] *= inv_diag;
 
         for (int row = 0; row < N; ++row) {
             if (row == k) continue;
-            float factor = A[row * N + k];
-            for (int col = k; col < N; ++col)
+            const auto factor = A[row * N + k];
+            for (int col = k; col < N; ++col) {
                 A[row * N + col] -= factor * A[k * N + col];
+            }
             b[row] -= factor * b[k];
         }
     }
@@ -127,11 +135,11 @@ void solve_contacts(std::vector<ball>& balls,
 
     // apply impulses
     for (int i = 0; i < N; ++i) {
-        const contact& c = contacts[i];
-        glm::vec2 impulse = j[i] * c.normal;
-        balls[c.a].vel -= invMass[c.a] * impulse;
+        const auto& c = contacts[i];
+        const auto impulse = j[i] * c.normal;
+        balls[c.a].vel -= balls[c.a].inv_mass() * impulse;
         if (c.b >= 0)
-            balls[c.b].vel += invMass[c.b] * impulse;
+            balls[c.b].vel += balls[c.b].inv_mass() * impulse;
     }
 }
 
