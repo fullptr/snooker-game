@@ -1,4 +1,3 @@
-#include "common.hpp"
 #include "input.hpp"
 #include "window.hpp"
 #include "utility.hpp"

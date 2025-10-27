@@ -5,7 +5,7 @@
 #include "event.hpp"
 #include "utility.hpp"
 #include "font.hpp"
-#include "common.hpp"
+#include "utility.hpp"
 
 #include <array>
 #include <unordered_map>
