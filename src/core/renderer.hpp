@@ -2,7 +2,7 @@
 #include "buffer.hpp"
 #include "shader.hpp"
 #include "camera.hpp"
-#include "common.hpp"
+#include "utility.hpp"
 #include "font.hpp"
 
 #include <glm/glm.hpp>

@@ -1,9 +1,11 @@
-#include "common.hpp"
 #include "input.hpp"
 #include "window.hpp"
 #include "utility.hpp"
 #include "renderer.hpp"
 #include "ui.hpp"
+
+#include "table.hpp"
+#include "simulation.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -15,6 +17,7 @@
 #include <initializer_list>
 #include <string>
 #include <optional>
+#include <numbers>
 #include <ranges>
 #include <unordered_map>
 #include <unordered_set>
@@ -28,20 +31,6 @@ enum class next_state
     game,
     exit,
 };
-
-constexpr auto clear_colour = snooker::from_hex(0x222f3e);
-constexpr auto ball_radius = 2.54f; // english pool bool cm == 1 inch
-constexpr auto ball_mass = 140.0f; // grams
-constexpr auto board_colour = from_hex(0x3db81e);
-constexpr auto break_speed = 983.49f; // cm
-
-auto assert_that(bool condition, std::string_view message = {}, std::source_location loc = std::source_location::current()) -> void
-{
-    if (!condition) {
-        std::print("FAILED ASSERTION: ({}) {}\n", loc.line(), message);
-        std::terminate();
-    }
-}
 
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
@@ -100,85 +89,6 @@ auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> ne
     }
 
     return next_state::exit;
-}
-
-// dimensions are an english pool table in cm (6ft x 3ft)
-struct table
-{
-    f32 length;
-    f32 width;
-
-    auto dimensions() -> glm::vec2 { return {length, width}; }
-};
-
-struct ball
-{
-    glm::vec2 pos;
-    glm::vec2 vel;
-    glm::vec4 colour;
-
-    float mass = ball_mass;
-    float radius = ball_radius;
-};
-
-auto update_ball(ball& b, const table& t, float dt) -> void
-{
-    b.pos += b.vel * dt;
-    b.vel *= 0.98f;
-    
-    if (b.pos.x - b.radius < 0) {
-        b.pos.x = b.radius;
-        b.vel.x = -b.vel.x;
-    }
-    if (b.pos.x + b.radius > t.length) {
-        b.pos.x = t.length - b.radius;
-        b.vel.x = -b.vel.x;
-    }
-    
-    if (b.pos.y - b.radius < 0) {
-        b.pos.y = b.radius;
-        b.vel.y = -b.vel.y;
-    }
-    if (b.pos.y + b.radius > t.width) {
-        b.pos.y = t.width - b.radius;
-        b.vel.y = -b.vel.y;
-    }
-}
-
-// TODO: handle balls intersecting (tunnelling)
-auto update_ball_collision(ball& a, ball& b, const table& t, float dt) -> void
-{
-    if (glm::length(a.pos - b.pos) > (a.radius + b.radius)) {
-        return; // no contact
-    }
-
-    constexpr auto restitution = 0.8f;
-    
-    const auto dp = a.pos - b.pos;
-    const auto dv = a.vel - b.vel;
-    
-    if (glm::length2(dp) == 0) {
-        return;
-    }
-
-    const auto length2 = glm::dot(dp, dp);
-    if (length2 == 0.0f) {
-        return; // avoid division by zero
-    }
-
-    const auto normal = glm::normalize(dp);
-    const auto vel_along_normal = glm::dot(dv, normal);
-
-    if (vel_along_normal >= 0.0f) {
-        return; // moving away so no need to resolve
-    }
-
-    const auto inverse_mass = (1.0f / a.mass) + (1.0f / b.mass);
-    const auto impulse_size = -(1.0f + restitution) * vel_along_normal / inverse_mass;
-    const auto impulse = impulse_size * normal;
-
-    a.vel += impulse / a.mass;
-    b.vel -= impulse / b.mass;
 }
 
 auto add_triangle(std::vector<ball>& balls, glm::vec2 front_pos)
@@ -264,14 +174,20 @@ auto find_contact_ball(const std::vector<ball>& balls, glm::vec2 start, glm::vec
     return ret;
 }
 
-struct converter
+class converter
 {
-    glm::vec2 top_left;
-    float     board_to_screen;
+    float     d_board_to_screen;
+    glm::vec2 d_top_left;
 
-    auto to_board(glm::vec2 value) const -> glm::vec2 { return value / board_to_screen - top_left; }
-    auto to_screen(glm::vec2 value) const -> glm::vec2 { return (top_left + value) * board_to_screen; }
-    auto to_screen(float value) const -> float { return value * board_to_screen; }
+public:
+    converter(glm::vec2 window_dim, glm::vec2 table_dim, float screen_fill_factor)
+        : d_board_to_screen{(screen_fill_factor * window_dim.x) / table_dim.x}
+        , d_top_left{(window_dim / d_board_to_screen - table_dim) / 2.0f}
+    {}
+
+    auto to_board(glm::vec2 value) const -> glm::vec2 { return value / d_board_to_screen - d_top_left; }
+    auto to_screen(glm::vec2 value) const -> glm::vec2 { return (d_top_left + value) * d_board_to_screen; }
+    auto to_screen(float value) const -> float { return value * d_board_to_screen; }
 };
 
 auto adjust_alpha(glm::vec4 colour, float alpha) -> glm::vec4
@@ -291,22 +207,17 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         ball{{50.0f, pool_table.width / 2.0f}, {0.0f, 0.0f}, {1, 1, 1, 1}}, // ball 0 is always the cue ball
     };
     add_triangle(pool_balls, {0.8f * pool_table.length, pool_table.width / 2.0f});
+
     
     double accumulator = 0.0;
-    constexpr double time_step = 1.0 / 60.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
-
-        const auto board_to_screen = (0.9f * window.width()) / pool_table.length;
-        const auto window_dimensions_board = window.dimensions() / board_to_screen;
-        const auto top_left = (window_dimensions_board - pool_table.dimensions()) / 2.0f; // board space coord
-        const auto c = converter{ top_left, board_to_screen };
-
-        const auto mouse_pos_board = glm::vec2{window.mouse_pos()} / board_to_screen;
+        
+        const auto c = converter{window.dimensions(), pool_table.dimensions(), 0.9f};
         
         auto& cue_ball = pool_balls[0];
-        const auto aim_direction = glm::normalize(mouse_pos_board - (top_left + cue_ball.pos));
+        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos);
         
         for (const auto event : window.events()) {
             ui.on_event(event);
@@ -316,18 +227,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         accumulator += dt;
-        while (accumulator > time_step) {
-            // Update ball positions
-            for (std::size_t i = 0; i != pool_balls.size(); ++i) {
-                for (std::size_t j = i + 1; j != pool_balls.size(); ++j) {
-                    update_ball_collision(pool_balls[i], pool_balls[j], pool_table, time_step);
-                }
-            }
-    
-            for (auto& ball : pool_balls) {
-                update_ball(ball, pool_table, time_step);
-            }
-            accumulator -= time_step;
+        while (accumulator > step) {
+            step_simulation(pool_balls, dt, 0, 0, pool_table.length, pool_table.width);
+            accumulator -= step;
         }
 
 
