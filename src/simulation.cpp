@@ -179,24 +179,32 @@ void fix_positions(std::vector<ball>& circles, const std::vector<contact>& conta
 void step_simulation(std::vector<ball>& circles, float dt,
                       float xmin, float ymin, float xmax, float ymax)
 {
-    // 1. integrate positions
-    for (auto& c : circles) {
-        c.pos += c.vel * dt;
-    }
+    const auto num_substeps = 6;
+    const auto sub_dt = dt / num_substeps;
 
-    // 2. generate contacts
-    auto contacts = generate_contacts(circles, xmin, ymin, xmax, ymax);
-
-    // 3. solve collisions
-    solve_contacts(circles, contacts);
-
-    // 4. positional correction
-    fix_positions(circles, contacts);
-
-    // 5. time-step–dependent global damping
-    const auto damping = std::exp(-1.5f * dt); // 1.5 means ~77% velocity lost per second
-    for (auto& c : circles) {
-        c.vel *= damping;
+    for (int i = 0; i != num_substeps; ++i) {
+        // 1. integrate positions
+        for (auto& c : circles) {
+            c.pos += c.vel * sub_dt;
+        }
+    
+        // 2. generate contacts
+        auto contacts = generate_contacts(circles, xmin, ymin, xmax, ymax);
+    
+        // 3. solve collisions
+        solve_contacts(circles, contacts);
+    
+        // 4. positional correction
+        fix_positions(circles, contacts);
+    
+        // 5. time-step–dependent global damping
+        const auto damping = std::exp(-1.5f * sub_dt); // 1.5 means ~77% velocity lost per second
+        for (auto& c : circles) {
+            c.vel *= damping;
+            if (glm::length(c.vel) < 0.01f) {
+                c.vel = glm::vec2{0, 0};
+            }
+        }
     }
 }
 
