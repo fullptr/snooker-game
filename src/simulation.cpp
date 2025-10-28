@@ -44,10 +44,10 @@ auto collision_test(const collider& a, const collider& b) -> std::optional<colli
             const auto Px = std::clamp(ax, bx_min, bx_max);
             const auto Py = std::clamp(ay, by_min, by_max);
 
-            const auto delta = glm::vec2{ax - Px, ay - Py};
+            const auto delta = glm::vec2{Px - ax, Py - ay};
             const auto dist = glm::length(delta);
             if (dist < A.radius) { // collision
-                if (a.pos != glm::vec2{Px, Py}) { // circle centre is in the box (the clamp moved the centre)
+                if (a.pos != glm::vec2{Px, Py}) { // circle centre is outside the box (the clamp moved the centre)
                     const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
                     return collision_info{n, A.radius - dist};
                 }
@@ -157,23 +157,22 @@ void solve_contacts(std::vector<collider>& colliders,
     auto& j = b; // in reduced echelon form, b now stores j
 
     // clamp impulses to prevent negative push
-    for (int i = 0; i < N; ++i) {
-        const contact& c = contacts[i];
-        if (c.b < 0) { // wall
-            const auto vn = glm::dot(colliders[c.a].vel, c.normal);
-            const auto max_impulse = colliders[c.a].mass * std::max(0.0f, -vn);
-            j[i] = std::min(j[i], max_impulse);
-        }
-        j[i] = std::max(0.0f, j[i]);
-    }
+    //for (int i = 0; i < N; ++i) {
+    //    const contact& c = contacts[i];
+    //    if (colliders[c.b].mass < 0) {
+    //        const auto vn = glm::dot(colliders[c.a].vel, c.normal);
+    //        const auto max_impulse = colliders[c.a].mass * std::max(0.0f, -vn);
+    //        j[i] = std::min(j[i], max_impulse);
+    //    }
+    //    j[i] = std::max(0.0f, j[i]);
+    //}
 
     // apply impulses
     for (int i = 0; i < N; ++i) {
         const auto& c = contacts[i];
         const auto impulse = j[i] * c.normal;
         colliders[c.a].vel -= colliders[c.a].inv_mass() * impulse;
-        if (c.b >= 0)
-            colliders[c.b].vel += colliders[c.b].inv_mass() * impulse;
+        colliders[c.b].vel += colliders[c.b].inv_mass() * impulse;
     }
 }
 

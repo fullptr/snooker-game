@@ -266,6 +266,14 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             renderer.push_circle(c.to_screen(col.pos), ball.colour, c.to_screen(radius));
         }
 
+        // TODO: remove this - temp code to render the boxes
+        for (const auto& collider : pool_table.colliders) {
+            if (std::holds_alternative<box_shape>(collider.geometry)) {
+                const auto& box = std::get<box_shape>(collider.geometry);
+                renderer.push_quad(c.to_screen(collider.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x1e272e));
+            }
+        }
+
         // Draw cue
         renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
 
