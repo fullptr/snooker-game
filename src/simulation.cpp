@@ -11,9 +11,7 @@ struct contact {
     float penetration; // overlap depth
 };
 
-std::vector<contact> generate_contacts(const std::vector<ball>& circles,
-                                       float xmin, float ymin,
-                                       float xmax, float ymax)
+std::vector<contact> generate_contacts(const std::vector<ball>& circles)
 {
     std::vector<contact> contacts;
     const auto margin = 1e-4f;
@@ -33,17 +31,17 @@ std::vector<contact> generate_contacts(const std::vector<ball>& circles,
     }
 
     // circle to wall
-    for (std::size_t i = 0; i < circles.size(); ++i) {
-        const auto& c = circles[i];
-        if (c.pos.x - c.radius < xmin + margin)
-            contacts.push_back({ (int)i, -1, glm::vec2(1, 0), xmin - (c.pos.x - c.radius) });
-        if (c.pos.x + c.radius > xmax - margin)
-            contacts.push_back({ (int)i, -1, glm::vec2(-1, 0), (c.pos.x + c.radius) - xmax });
-        if (c.pos.y - c.radius < ymin + margin)
-            contacts.push_back({ (int)i, -1, glm::vec2(0, 1), ymin - (c.pos.y - c.radius) });
-        if (c.pos.y + c.radius > ymax - margin)
-            contacts.push_back({ (int)i, -1, glm::vec2(0, -1), (c.pos.y + c.radius) - ymax });
-    }
+    //for (std::size_t i = 0; i < circles.size(); ++i) {
+    //    const auto& c = circles[i];
+    //    if (c.pos.x - c.radius < xmin + margin)
+    //        contacts.push_back({ (int)i, -1, glm::vec2(1, 0), xmin - (c.pos.x - c.radius) });
+    //    if (c.pos.x + c.radius > xmax - margin)
+    //        contacts.push_back({ (int)i, -1, glm::vec2(-1, 0), (c.pos.x + c.radius) - xmax });
+    //    if (c.pos.y - c.radius < ymin + margin)
+    //        contacts.push_back({ (int)i, -1, glm::vec2(0, 1), ymin - (c.pos.y - c.radius) });
+    //    if (c.pos.y + c.radius > ymax - margin)
+    //        contacts.push_back({ (int)i, -1, glm::vec2(0, -1), (c.pos.y + c.radius) - ymax });
+    //}
 
     return contacts;
 }
@@ -176,8 +174,7 @@ void fix_positions(std::vector<ball>& circles, const std::vector<contact>& conta
 
 }
 
-void step_simulation(std::vector<ball>& circles, float dt,
-                      float xmin, float ymin, float xmax, float ymax)
+void step_simulation(std::vector<ball>& circles, float dt)
 {
     const auto num_substeps = 6;
     const auto sub_dt = dt / num_substeps;
@@ -189,7 +186,7 @@ void step_simulation(std::vector<ball>& circles, float dt,
         }
     
         // 2. generate contacts
-        auto contacts = generate_contacts(circles, xmin, ymin, xmax, ymax);
+        auto contacts = generate_contacts(circles);
     
         // 3. solve collisions
         solve_contacts(circles, contacts);
