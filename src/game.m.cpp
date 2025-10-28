@@ -113,7 +113,7 @@ auto add_triangle(table& t, glm::vec2 front_pos)
     t.add_ball(front_pos + 3.0f * left + 1.0f * down, yel);
     t.add_ball(front_pos + 3.0f * left + 2.0f * down, red);
     t.add_ball(front_pos + 3.0f * left + 3.0f * down, yel);
-    
+
     t.add_ball(front_pos + 4.0f * left + 0.0f * down, yel);
     t.add_ball(front_pos + 4.0f * left + 1.0f * down, yel);
     t.add_ball(front_pos + 4.0f * left + 2.0f * down, red);
@@ -131,7 +131,11 @@ struct raycast_info
 auto raycast(glm::vec2 start, glm::vec2 end, const collider& cue_ball, const collider& other) -> std::optional<raycast_info>
 {
     assert_that(std::holds_alternative<circle_shape>(cue_ball.geometry), "cue ball must be a circle");
-    assert_that(std::holds_alternative<circle_shape>(other.geometry), "only supporting circles for now");
+
+    if (std::holds_alternative<box_shape>(other.geometry)) {
+        return {}; // TODO: make raycasts work against boxes
+    }
+
     const auto cue_ball_radius = std::get<circle_shape>(cue_ball.geometry).radius;
     const auto other_radius    = std::get<circle_shape>(other.geometry).radius;
 
@@ -216,6 +220,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     pool_table.add_ball({50.0f, pool_table.width / 2.0f}, {1, 1, 1, 1}); // ball 0 is always the cue ball
     add_triangle(pool_table, {0.8f * pool_table.length, pool_table.width / 2.0f});
 
+    // TODO: remove this temp code that adds walls
+    pool_table.colliders.push_back(collider{ .pos=glm::vec2{pool_table.width/2.0f, -25.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=pool_table.width, .height=50.0f }, .mass=-1 });
     
     double accumulator = 0.0;
     while (window.is_running()) {

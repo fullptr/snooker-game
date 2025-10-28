@@ -21,10 +21,9 @@ struct collision_info
 auto collision_test(const collider& a, const collider& b) -> std::optional<collision_info>
 {
     assert_that(std::holds_alternative<circle_shape>(a.geometry), "currently only supporting circle-circle");
-    assert_that(std::holds_alternative<circle_shape>(b.geometry), "currently only supporting circle-circle");
     return std::visit(overloaded{
         [&](const circle_shape& A, const circle_shape& B) -> std::optional<collision_info> {
-            glm::vec2 delta = b.pos - a.pos;
+            const auto delta = b.pos - a.pos;
             const auto dist = glm::length(delta);
             const auto r = A.radius + B.radius;
             if (dist < r) {
@@ -33,11 +32,34 @@ auto collision_test(const collider& a, const collider& b) -> std::optional<colli
             }
             return {};
         },
+        [&](const circle_shape& A, const box_shape& B) -> std::optional<collision_info> {
+            const auto ax = a.pos.x;
+            const auto ay = a.pos.y;
+            const auto bx_min = b.pos.x - B.width / 2.0f;
+            const auto bx_max = b.pos.x + B.width / 2.0f;
+            const auto by_min = b.pos.y - B.height / 2.0f;
+            const auto by_max = b.pos.y + B.height / 2.0f;
+
+            // closest point in the box to the circles centre
+            const auto Px = std::clamp(ax, bx_min, bx_max);
+            const auto Py = std::clamp(ay, by_min, by_max);
+
+            const auto delta = glm::vec2{ax - Px, ay - Py};
+            const auto dist = glm::length(delta);
+            if (dist < A.radius) { // collision
+                if (a.pos != glm::vec2{Px, Py}) { // circle centre is in the box (the clamp moved the centre)
+                    const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
+                    return collision_info{n, A.radius - dist};
+                }
+                assert_that(false, "TODO: figure out the sitation where the centre of the circle is inside the box");
+            }
+            return {};
+        },
         [&](auto&&, auto&&) -> std::optional<collision_info> { return {}; }
     }, a.geometry, b.geometry);
 }
 
-std::vector<contact> generate_contacts(const std::vector<collider>& colliders)
+auto generate_contacts(const std::vector<collider>& colliders) -> std::vector<contact>
 {
     std::vector<contact> contacts;
     const auto margin = 1e-4f;
