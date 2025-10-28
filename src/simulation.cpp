@@ -25,10 +25,9 @@ auto collision_test(const collider& a, const collider& b) -> std::optional<colli
     return std::visit(overloaded{
         [&](const circle_shape& A, const circle_shape& B) -> std::optional<collision_info> {
             glm::vec2 delta = b.pos - a.pos;
-            const auto dist2 = glm::dot(delta, delta);
+            const auto dist = glm::length(delta);
             const auto r = A.radius + B.radius;
-            if (dist2 < r * r) {
-                const auto dist = std::sqrt(dist2);
+            if (dist < r) {
                 const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
                 return collision_info{n, r - dist};
             }
