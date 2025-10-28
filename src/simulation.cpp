@@ -5,48 +5,57 @@ namespace snooker {
 namespace {
 
 struct contact {
-    int a;             // circle index
-    int b;             // -1 for wall
+    std::size_t a;     // collider index
+    std::size_t b;     // collider index
     glm::vec2 normal;  // from A to B (or into circle for wall)
     float penetration; // overlap depth
 };
 
-std::vector<contact> generate_contacts(const std::vector<ball>& circles)
+struct collision_info
+{
+    glm::vec2 normal;
+    float     penetration;
+};
+
+// Checks if two colliders are colliding, and returns the normal of the collision if the yare
+auto collision_test(const collider& a, const collider& b) -> std::optional<collision_info>
+{
+    assert_that(std::holds_alternative<circle_shape>(a.geometry), "currently only supporting circle-circle");
+    assert_that(std::holds_alternative<circle_shape>(b.geometry), "currently only supporting circle-circle");
+    return std::visit(overloaded{
+        [&](const circle_shape& A, const circle_shape& B) -> std::optional<collision_info> {
+            glm::vec2 delta = b.pos - a.pos;
+            const auto dist2 = glm::dot(delta, delta);
+            const auto r = A.radius + B.radius;
+            if (dist2 < r * r) {
+                const auto dist = std::sqrt(dist2);
+                const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
+                return collision_info{n, r - dist};
+            }
+            return {};
+        },
+        [&](auto&&, auto&&) -> std::optional<collision_info> { return {}; }
+    }, a.geometry, b.geometry);
+}
+
+std::vector<contact> generate_contacts(const std::vector<collider>& colliders)
 {
     std::vector<contact> contacts;
     const auto margin = 1e-4f;
 
     // circle to circle
-    for (std::size_t i = 0; i < circles.size(); ++i) {
-        for (std::size_t j = i + 1; j < circles.size(); ++j) {
-            glm::vec2 delta = circles[j].pos - circles[i].pos;
-            const auto dist2 = glm::dot(delta, delta);
-            const auto r = circles[i].radius + circles[j].radius;
-            if (dist2 < r * r) {
-                const auto dist = std::sqrt(dist2);
-                glm::vec2 n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
-                contacts.push_back({ (int)i, (int)j, n, r - dist });
+    for (std::size_t i = 0; i < colliders.size(); ++i) {
+        for (std::size_t j = i + 1; j < colliders.size(); ++j) {
+            if (const auto ci = collision_test(colliders[i], colliders[j])) {
+                contacts.push_back({ i, j, ci->normal, ci->penetration });
             }
         }
     }
 
-    // circle to wall
-    //for (std::size_t i = 0; i < circles.size(); ++i) {
-    //    const auto& c = circles[i];
-    //    if (c.pos.x - c.radius < xmin + margin)
-    //        contacts.push_back({ (int)i, -1, glm::vec2(1, 0), xmin - (c.pos.x - c.radius) });
-    //    if (c.pos.x + c.radius > xmax - margin)
-    //        contacts.push_back({ (int)i, -1, glm::vec2(-1, 0), (c.pos.x + c.radius) - xmax });
-    //    if (c.pos.y - c.radius < ymin + margin)
-    //        contacts.push_back({ (int)i, -1, glm::vec2(0, 1), ymin - (c.pos.y - c.radius) });
-    //    if (c.pos.y + c.radius > ymax - margin)
-    //        contacts.push_back({ (int)i, -1, glm::vec2(0, -1), (c.pos.y + c.radius) - ymax });
-    //}
-
     return contacts;
 }
 
-void solve_contacts(std::vector<ball>& balls,
+void solve_contacts(std::vector<collider>& colliders,
                     const std::vector<contact>& contacts,
                     float restitution = 0.8f)
 {
@@ -69,7 +78,7 @@ void solve_contacts(std::vector<ball>& balls,
         const auto b1 = ci.b;
         const auto normal_i = ci.normal;
 
-        const auto rv = (b1 >= 0 ? balls[b1].vel : glm::vec2(0)) - balls[a1].vel;
+        const auto rv = (b1 >= 0 ? colliders[b1].vel : glm::vec2(0)) - colliders[a1].vel;
         const auto rel_vel = glm::dot(rv, normal_i);
 
         // only apply restitution if moving into contact
@@ -87,16 +96,16 @@ void solve_contacts(std::vector<ball>& balls,
 
             auto val = 0.0f;
             if (a1 == a2) {
-                val += glm::dot(normal_i, normal_j) * balls[a1].inv_mass();
+                val += glm::dot(normal_i, normal_j) * colliders[a1].inv_mass();
             }
             if (b1 >= 0 && b1 == a2) {
-                val -= glm::dot(normal_i, normal_j) * balls[b1].inv_mass();
+                val -= glm::dot(normal_i, normal_j) * colliders[b1].inv_mass();
             }
             if (a1 == b2) {
-                val -= glm::dot(normal_i, normal_j) * balls[a1].inv_mass();
+                val -= glm::dot(normal_i, normal_j) * colliders[a1].inv_mass();
             }
             if (b1 >= 0 && b1 == b2) {
-                val += glm::dot(normal_i, normal_j) * balls[b1].inv_mass();
+                val += glm::dot(normal_i, normal_j) * colliders[b1].inv_mass();
             }
 
             A[i * N + j] = val;
@@ -130,8 +139,8 @@ void solve_contacts(std::vector<ball>& balls,
     for (int i = 0; i < N; ++i) {
         const contact& c = contacts[i];
         if (c.b < 0) { // wall
-            const auto vn = glm::dot(balls[c.a].vel, c.normal);
-            const auto max_impulse = balls[c.a].mass * std::max(0.0f, -vn);
+            const auto vn = glm::dot(colliders[c.a].vel, c.normal);
+            const auto max_impulse = colliders[c.a].mass * std::max(0.0f, -vn);
             j[i] = std::min(j[i], max_impulse);
         }
         j[i] = std::max(0.0f, j[i]);
@@ -141,62 +150,62 @@ void solve_contacts(std::vector<ball>& balls,
     for (int i = 0; i < N; ++i) {
         const auto& c = contacts[i];
         const auto impulse = j[i] * c.normal;
-        balls[c.a].vel -= balls[c.a].inv_mass() * impulse;
+        colliders[c.a].vel -= colliders[c.a].inv_mass() * impulse;
         if (c.b >= 0)
-            balls[c.b].vel += balls[c.b].inv_mass() * impulse;
+            colliders[c.b].vel += colliders[c.b].inv_mass() * impulse;
     }
 }
 
-void fix_positions(std::vector<ball>& circles, const std::vector<contact>& contacts) {
+void fix_positions(std::vector<collider>& colliders, const std::vector<contact>& contacts) {
     for (auto& c : contacts) {
         if (c.penetration <= 0) continue;
 
         if (c.b < 0) { // circle to wall
             // small positional correction
             const auto percent = 0.2f;
-            circles[c.a].pos += c.normal * c.penetration * percent;
+            colliders[c.a].pos += c.normal * c.penetration * percent;
 
             // bounce along wall using restitution
-            const auto vn = glm::dot(circles[c.a].vel, c.normal);
+            const auto vn = glm::dot(colliders[c.a].vel, c.normal);
             if (vn < 0.0f) {
                 const auto restitution = 0.8f;
-                circles[c.a].vel -= (1.0f + restitution) * vn * c.normal;
+                colliders[c.a].vel -= (1.0f + restitution) * vn * c.normal;
             }
         } else { // circle to circle
-            const auto inv_a = circles[c.a].inv_mass();
-            const auto inv_b = circles[c.b].inv_mass();
+            const auto inv_a = colliders[c.a].inv_mass();
+            const auto inv_b = colliders[c.b].inv_mass();
             const auto correction = c.penetration * 0.4f * c.normal / (inv_a + inv_b);
-            circles[c.a].pos -= inv_a * correction;
-            circles[c.b].pos += inv_b * correction;
+            colliders[c.a].pos -= inv_a * correction;
+            colliders[c.b].pos += inv_b * correction;
         }
     }
 }
 
 }
 
-void step_simulation(std::vector<ball>& circles, float dt)
+void step_simulation(std::vector<collider>& colliders, float dt)
 {
     const auto num_substeps = 6;
     const auto sub_dt = dt / num_substeps;
 
     for (int i = 0; i != num_substeps; ++i) {
         // 1. integrate positions
-        for (auto& c : circles) {
+        for (auto& c : colliders) {
             c.pos += c.vel * sub_dt;
         }
     
         // 2. generate contacts
-        auto contacts = generate_contacts(circles);
+        auto contacts = generate_contacts(colliders);
     
         // 3. solve collisions
-        solve_contacts(circles, contacts);
+        solve_contacts(colliders, contacts);
     
         // 4. positional correction
-        fix_positions(circles, contacts);
+        fix_positions(colliders, contacts);
     
         // 5. time-step–dependent global damping
         const auto damping = std::exp(-1.5f * sub_dt); // 1.5 means ~77% velocity lost per second
-        for (auto& c : circles) {
+        for (auto& c : colliders) {
             c.vel *= damping;
             if (glm::length(c.vel) < 0.01f) {
                 c.vel = glm::vec2{0, 0};

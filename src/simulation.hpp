@@ -5,6 +5,6 @@
 
 namespace snooker {
 
-void step_simulation(std::vector<ball>& circles, float dt);
+void step_simulation(std::vector<collider>& colliders, float dt);
 
 }
