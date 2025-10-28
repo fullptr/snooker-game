@@ -102,23 +102,23 @@ auto add_triangle(table& t, glm::vec2 front_pos)
 
     t.add_ball(front_pos + 0.0f * left + 0.0f * down, red);
 
-    //balls.push_back(ball{ front_pos + 1.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 1.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-//
-    //balls.push_back(ball{ front_pos + 2.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 2.0f * left + 1.0f * down, {0.0f, 0.0f}, blk });
-    //balls.push_back(ball{ front_pos + 2.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-//
-    //balls.push_back(ball{ front_pos + 3.0f * left + 0.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 3.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 3.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 3.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
-//
-    //balls.push_back(ball{ front_pos + 4.0f * left + 0.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 1.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 2.0f * down, {0.0f, 0.0f}, red });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 3.0f * down, {0.0f, 0.0f}, yel });
-    //balls.push_back(ball{ front_pos + 4.0f * left + 4.0f * down, {0.0f, 0.0f}, red });
+    t.add_ball(front_pos + 1.0f * left + 0.0f * down, red);
+    t.add_ball(front_pos + 1.0f * left + 1.0f * down, yel);
+
+    t.add_ball(front_pos + 2.0f * left + 0.0f * down, yel);
+    t.add_ball(front_pos + 2.0f * left + 1.0f * down, blk);
+    t.add_ball(front_pos + 2.0f * left + 2.0f * down, red);
+
+    t.add_ball(front_pos + 3.0f * left + 0.0f * down, red);
+    t.add_ball(front_pos + 3.0f * left + 1.0f * down, yel);
+    t.add_ball(front_pos + 3.0f * left + 2.0f * down, red);
+    t.add_ball(front_pos + 3.0f * left + 3.0f * down, yel);
+    
+    t.add_ball(front_pos + 4.0f * left + 0.0f * down, yel);
+    t.add_ball(front_pos + 4.0f * left + 1.0f * down, yel);
+    t.add_ball(front_pos + 4.0f * left + 2.0f * down, red);
+    t.add_ball(front_pos + 4.0f * left + 3.0f * down, yel);
+    t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
 }
 
 struct raycast_info
