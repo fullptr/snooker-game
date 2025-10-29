@@ -143,27 +143,33 @@ auto raycast(glm::vec2 start, glm::vec2 end, const collider& cue_ball, const col
 {
     assert_that(std::holds_alternative<circle_shape>(cue_ball.geometry), "cue ball must be a circle");
 
-    if (std::holds_alternative<box_shape>(other.geometry)) {
-        return {}; // TODO: make raycasts work against boxes
-    }
-
-    const auto cue_ball_radius = std::get<circle_shape>(cue_ball.geometry).radius;
-    const auto other_radius    = std::get<circle_shape>(other.geometry).radius;
-
-    const auto dir = glm::normalize(end - start);
-    const auto v = other.pos - start;
-    const auto cross = v.x * dir.y - v.y * dir.x;
-    const auto distance_from = glm::abs(cross);
-    if (distance_from > (cue_ball_radius + other_radius)) {
-        return {};
-    }
-
-    const auto distance_along = glm::sqrt(glm::length2(v) - distance_from * distance_from);
-    if (glm::dot(dir, other.pos - start) < 0) { // only raycast forward
-        return {};
-    }
-
-    return raycast_info{ distance_from, distance_along, dir };
+    return std::visit(overloaded{
+        [&](const circle_shape& shape) -> std::optional<raycast_info> {
+            const auto cue_ball_radius = std::get<circle_shape>(cue_ball.geometry).radius;
+            const auto other_radius    = std::get<circle_shape>(other.geometry).radius;
+        
+            const auto dir = glm::normalize(end - start);
+            const auto v = other.pos - start;
+            const auto cross = v.x * dir.y - v.y * dir.x;
+            const auto distance_from = glm::abs(cross);
+            if (distance_from > (cue_ball_radius + other_radius)) {
+                return {};
+            }
+        
+            const auto distance_along = glm::sqrt(glm::length2(v) - distance_from * distance_from);
+            if (glm::dot(dir, other.pos - start) < 0) { // only raycast forward
+                return {};
+            }
+        
+            return raycast_info{ distance_from, distance_along, dir };
+        },
+        [&](const box_shape& shape) -> std::optional<raycast_info> {
+            return {}; // TODO: Implement this
+        },
+        [](auto&&) -> std::optional<raycast_info> {
+            return {};
+        }
+    }, other.geometry);
 }
 
 struct hit_contact
