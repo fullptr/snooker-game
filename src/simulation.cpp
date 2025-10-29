@@ -60,9 +60,7 @@ auto collision_test(const collider& a, const collider& b) -> std::optional<colli
 auto generate_contacts(const std::vector<collider>& colliders) -> std::vector<contact>
 {
     std::vector<contact> contacts;
-    const auto margin = 1e-4f;
 
-    // circle to circle
     for (std::size_t i = 0; i < colliders.size(); ++i) {
         for (std::size_t j = i + 1; j < colliders.size(); ++j) {
             if (const auto ci = collision_test(colliders[i], colliders[j])) {
