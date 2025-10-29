@@ -1,11 +1,36 @@
 #pragma once
+#include <variant>
 #include <vector>
-
-#include "table.hpp"
+#include <glm/glm.hpp>
 
 namespace snooker {
 
-void step_simulation(std::vector<ball>& circles, float dt,
-                     float xmin, float ymin, float xmax, float ymax);
+struct circle_shape
+{
+    float radius;
+};
+
+struct box_shape
+{
+    float width;
+    float height;
+};
+
+using shape = std::variant<circle_shape, box_shape>;
+
+struct collider
+{
+    glm::vec2 pos;
+    glm::vec2 vel;
+    shape     geometry;
+    float     mass; // non-positive mass == static
+
+    auto inv_mass() const -> float {
+        if (mass <= 0) return 0;
+        return 1.0f / mass;
+    }
+};
+
+void step_simulation(std::vector<collider>& colliders, float dt);
 
 }
