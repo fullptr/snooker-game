@@ -91,7 +91,7 @@ auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> ne
     return next_state::exit;
 }
 
-auto add_triangle(table& t, glm::vec2 front_pos)
+auto add_triangle(table& t, glm::vec2 front_pos) -> void
 {
     const auto left = glm::vec2{std::sqrt(3) * ball_radius, -ball_radius};
     const auto down = glm::vec2{0, 2 * ball_radius};
@@ -119,6 +119,17 @@ auto add_triangle(table& t, glm::vec2 front_pos)
     t.add_ball(front_pos + 4.0f * left + 2.0f * down, red);
     t.add_ball(front_pos + 4.0f * left + 3.0f * down, yel);
     t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
+}
+
+auto add_border(table& t) -> void
+{
+    static constexpr auto border_width = 5.0f;
+
+    t.colliders.push_back(collider{ .pos=glm::vec2{-border_width/2.0f, t.width/2.0f},         .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=border_width, .height=(2*border_width + t.width) },  .mass=-1 });
+    t.colliders.push_back(collider{ .pos=glm::vec2{t.length+border_width/2.0f, t.width/2.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=border_width, .height=(2*border_width + t.width) },  .mass=-1 });
+
+    t.colliders.push_back(collider{ .pos=glm::vec2{t.length/2.0f, -border_width/2.0f},        .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=(2*border_width + t.length), .height=border_width }, .mass=-1 });
+    t.colliders.push_back(collider{ .pos=glm::vec2{t.length/2.0f, t.width+border_width/2.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=(2*border_width + t.length), .height=border_width }, .mass=-1 });
 }
 
 struct raycast_info
@@ -219,9 +230,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
     pool_table.add_ball({50.0f, pool_table.width / 2.0f}, {1, 1, 1, 1}); // ball 0 is always the cue ball
     add_triangle(pool_table, {0.8f * pool_table.length, pool_table.width / 2.0f});
-
-    // TODO: remove this temp code that adds walls
-    pool_table.colliders.push_back(collider{ .pos=glm::vec2{pool_table.width/2.0f, -25.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=pool_table.width, .height=50.0f }, .mass=-1 });
+    add_border(pool_table); // TODO: replace with a better construction
     
     double accumulator = 0.0;
     while (window.is_running()) {
@@ -248,7 +257,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
 
         // Draw table
-        renderer.push_rect(c.to_screen({0, 0}), c.to_screen(pool_table.length), c.to_screen(pool_table.width), board_colour);
+        const auto delta = 2.5f;
+        renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(pool_table.length+2*delta), c.to_screen(pool_table.width+2*delta), board_colour);
 
         // Draw balls
         const auto& cue_ball_ball = pool_table.balls[0];
@@ -270,7 +280,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         for (const auto& collider : pool_table.colliders) {
             if (std::holds_alternative<box_shape>(collider.geometry)) {
                 const auto& box = std::get<box_shape>(collider.geometry);
-                renderer.push_quad(c.to_screen(collider.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x1e272e));
+                renderer.push_quad(c.to_screen(collider.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
             }
         }
 
