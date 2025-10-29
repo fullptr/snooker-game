@@ -1,5 +1,6 @@
 #pragma once
 #include "utility.hpp"
+#include "simulation.hpp"
 
 #include <glm/glm.hpp>
 #include <variant>
@@ -11,32 +12,6 @@ constexpr auto ball_radius = 2.54f; // english pool bool cm == 1 inch
 constexpr auto ball_mass = 140.0f; // grams
 constexpr auto board_colour = from_hex(0x3db81e);
 constexpr auto break_speed = 983.49f; // cm
-
-struct circle_shape
-{
-    float radius;
-};
-
-struct box_shape
-{
-    float width;
-    float height;
-};
-
-using shape = std::variant<circle_shape, box_shape>;
-
-struct collider
-{
-    glm::vec2 pos;
-    glm::vec2 vel;
-    shape     geometry;
-    float     mass; // non-positive mass == static
-
-    auto inv_mass() const -> float {
-        if (mass <= 0) return 0;
-        return 1.0f / mass;
-    }
-};
 
 struct ball
 {
