@@ -58,9 +58,7 @@ auto collision_test(const collider& a, const collider& b) -> std::optional<colli
         },
         [&](const box_shape& A, const circle_shape& B) -> std::optional<collision_info> {
             auto ret = collision_test(b, a); // reverse
-            if (ret) {
-                ret->normal = -ret->normal;
-            }
+            if (ret) ret->normal = -ret->normal;
             return ret;
         },
         [&](auto&&, auto&&) -> std::optional<collision_info> {
@@ -201,8 +199,10 @@ void fix_positions(std::vector<collider>& colliders, const std::vector<contact>&
 
 }
 
-void step_simulation(std::vector<collider>& colliders, float dt)
+void simulation::step(float dt)
 {
+    auto& colliders = d_colliders.data();
+
     const auto num_substeps = 6;
     const auto sub_dt = dt / num_substeps;
 

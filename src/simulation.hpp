@@ -85,8 +85,6 @@ public:
     }
 };
 
-void step_simulation(std::vector<collider>& colliders, float dt);
-
 class simulation
 {
     id_vector<collider> d_colliders;
@@ -119,10 +117,7 @@ public:
         return d_colliders.get(id);
     }
 
-    auto step(float dt) -> void
-    {
-        step_simulation(d_colliders.data(), dt);
-    }
+    auto step(float dt) -> void;
     
     auto is_valid(std::size_t id) const -> bool
     {
