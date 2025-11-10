@@ -56,6 +56,13 @@ auto collision_test(const collider& a, const collider& b) -> std::optional<colli
             }
             return {};
         },
+        [&](const box_shape& A, const circle_shape& B) -> std::optional<collision_info> {
+            auto ret = collision_test(b, a); // reverse
+            if (ret) {
+                ret->normal = -ret->normal;
+            }
+            return ret;
+        },
         [&](auto&&, auto&&) -> std::optional<collision_info> {
             assert_that(false, "unhandled collision type!");
             return {};

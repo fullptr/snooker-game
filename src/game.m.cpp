@@ -184,6 +184,8 @@ struct hit_contact
 auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
 {
     assert_that(!t.object_balls.empty(), "balls should never be empty");
+    assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.collider).geometry), "cue ball must be a circle");
+    const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.collider).geometry).radius;
 
     auto ret = std::optional<hit_contact>{};
     auto distance = std::numeric_limits<std::size_t>::max();
@@ -191,9 +193,7 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
     for (const auto& ball : t.object_balls) {
         const auto ray = raycast(start, end, t.sim.get(t.cue_ball.collider), t.sim.get(ball.collider));
         if (ray) {
-            assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.collider).geometry), "cue ball must be a circle");
             assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.collider).geometry), "obj ball must be a circle");
-            const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.collider).geometry).radius;
             const auto obj_ball_radius = std::get<circle_shape>(t.sim.get(ball.collider).geometry).radius;
 
             const auto rad_sum = cue_ball_radius + obj_ball_radius;
@@ -263,7 +263,25 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         while (accumulator > step) {
             pool_table.sim.step(step);
             accumulator -= step;
+
         }
+
+        // Temp code to test deleting balls
+        std::unordered_set<std::size_t> to_delete;
+        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
+            const auto pos = pool_table.sim.get(pool_table.object_balls[i].collider).pos;
+            if (pos.x < 20 && pos.y < 20) {
+                to_delete.insert(i);
+            }
+        }
+        for (const auto idx : to_delete) {
+            pool_table.sim.remove(pool_table.object_balls[idx].collider);
+        }
+        std::vector<ball> new_balls;
+        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
+            if (!to_delete.contains(i)) new_balls.push_back(pool_table.object_balls[i]);
+        }
+        pool_table.object_balls = new_balls;
 
         // Draw table
         const auto delta = 2.5f;
