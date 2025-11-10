@@ -126,11 +126,13 @@ auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
 
-    t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width);
-    t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width);
+    const auto b1 = t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width);
+    const auto b2 = t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width);
 
-    t.sim.add_box({t.length/2.0f, -border_width/2.0f},        2*border_width + t.length, border_width);
-    t.sim.add_box({t.length/2.0f, t.width+border_width/2.0f}, 2*border_width + t.length, border_width);
+    const auto b3 = t.sim.add_box({t.length/2.0f, -border_width/2.0f},        2*border_width + t.length, border_width);
+    const auto b4 = t.sim.add_box({t.length/2.0f, t.width+border_width/2.0f}, 2*border_width + t.length, border_width);
+
+    t.border_boxes = {b1, b2, b3, b4};
 }
 
 struct raycast_info
@@ -292,11 +294,10 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // TODO: remove this - temp code to render the boxes
-        for (const auto& collider : pool_table.sim.get_all()) {
-            if (std::holds_alternative<box_shape>(collider.geometry)) {
-                const auto& box = std::get<box_shape>(collider.geometry);
-                renderer.push_quad(c.to_screen(collider.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
-            }
+        for (const auto id : pool_table.border_boxes) {
+            const auto& coll = pool_table.sim.get(id);
+            const auto& box = std::get<box_shape>(coll.geometry);
+            renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
         }
 
         // Draw cue

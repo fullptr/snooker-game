@@ -25,18 +25,17 @@ struct table
     f32 length;
     f32 width;
 
-    ball cue_ball;
-    std::vector<ball> object_balls;
-
     simulation sim;
+
+    // Colliders
+    ball                     cue_ball;
+    std::vector<ball>        object_balls;
+    std::vector<std::size_t> border_boxes;
 
     auto dimensions() -> glm::vec2 { return {length, width}; }
 
     void set_cue_ball(glm::vec2 position)
     {
-        if (sim.is_valid(cue_ball.collider)) {
-            sim.remove(cue_ball.collider);
-        }
         const auto id = sim.add_circle(position, ball_radius, ball_mass);
         cue_ball = ball{ .collider=id, .colour={1, 1, 1, 1}};
     }
