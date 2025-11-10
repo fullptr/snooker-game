@@ -209,7 +209,7 @@ void simulation::step(float dt)
         fix_positions(colliders, contacts);
     
         // 5. time-step–dependent global damping
-        const auto damping = std::exp(-1.5f * sub_dt); // 1.5 means ~77% velocity lost per second
+        const auto damping = std::exp(-1.1f * sub_dt); // 1.5 means ~77% velocity lost per second
         for (auto& c : colliders) {
             c.vel *= damping;
             if (glm::length(c.vel) < 0.01f) {

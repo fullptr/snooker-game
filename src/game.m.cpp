@@ -255,7 +255,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>()) {
-                cue_ball_coll.vel = 200.0f * aim_direction;
+                cue_ball_coll.vel = 400.0f * aim_direction;
             }
         }
 
