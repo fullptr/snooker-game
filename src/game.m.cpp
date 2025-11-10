@@ -121,15 +121,16 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
 }
 
+// TODO: store the box collider IDs on the table so we can use them to render
 auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
 
-    t.colliders.push_back(collider{ .pos=glm::vec2{-border_width/2.0f, t.width/2.0f},         .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=border_width, .height=(2*border_width + t.width) },  .mass=-1 });
-    t.colliders.push_back(collider{ .pos=glm::vec2{t.length+border_width/2.0f, t.width/2.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=border_width, .height=(2*border_width + t.width) },  .mass=-1 });
+    t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width);
+    t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width);
 
-    t.colliders.push_back(collider{ .pos=glm::vec2{t.length/2.0f, -border_width/2.0f},        .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=(2*border_width + t.length), .height=border_width }, .mass=-1 });
-    t.colliders.push_back(collider{ .pos=glm::vec2{t.length/2.0f, t.width+border_width/2.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=(2*border_width + t.length), .height=border_width }, .mass=-1 });
+    t.sim.add_box({t.length/2.0f, -border_width/2.0f},        2*border_width + t.length, border_width);
+    t.sim.add_box({t.length/2.0f, t.width+border_width/2.0f}, 2*border_width + t.length, border_width);
 }
 
 struct raycast_info
@@ -245,45 +246,44 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         
         const auto c = converter{window.dimensions(), pool_table.dimensions(), 0.9f};
         
-        auto& cue_ball = pool_table.colliders[pool_table.balls[0].collider];
-        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos);
+        const auto& cue_ball_ball = pool_table.balls[0];
+        auto& cue_ball_coll = pool_table.sim.get(cue_ball_ball.collider);
+        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
         
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>()) {
-                cue_ball.vel = 200.0f * aim_direction;
+                cue_ball_coll.vel = 200.0f * aim_direction;
             }
         }
 
         accumulator += dt;
         while (accumulator > step) {
-            step_simulation(pool_table.colliders, dt);
+            pool_table.sim.step(step);
             accumulator -= step;
         }
-
 
         // Draw table
         const auto delta = 2.5f;
         renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(pool_table.length+2*delta), c.to_screen(pool_table.width+2*delta), board_colour);
 
         // Draw balls
-        const auto& cue_ball_ball = pool_table.balls[0];
-        const auto contact_ball = find_contact_ball(pool_table.colliders, cue_ball.pos, c.to_board(window.mouse_pos()));
+        const auto contact_ball = find_contact_ball(pool_table.sim.get_all(), cue_ball_coll.pos, c.to_board(window.mouse_pos()));
         for (std::size_t i = 0; i != pool_table.balls.size(); ++i) { // This assumes that balls[0] is the cue ball
             const auto& ball = pool_table.balls[i];
-            const auto& col = pool_table.colliders[ball.collider];
-            assert_that(std::holds_alternative<circle_shape>(col.geometry), "only supporting balls for now");
-            const auto radius = std::get<circle_shape>(col.geometry).radius;
+            const auto& coll = pool_table.sim.get(ball.collider);
+            assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
+            const auto radius = std::get<circle_shape>(coll.geometry).radius;
 
             if (contact_ball && contact_ball->ball_index == i) {
-                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
+                renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
                 renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(cue_ball_ball.colour, 0.5f), c.to_screen(radius));
             }
-            renderer.push_circle(c.to_screen(col.pos), ball.colour, c.to_screen(radius));
+            renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
         // TODO: remove this - temp code to render the boxes
-        for (const auto& collider : pool_table.colliders) {
+        for (const auto& collider : pool_table.sim.get_all()) {
             if (std::holds_alternative<box_shape>(collider.geometry)) {
                 const auto& box = std::get<box_shape>(collider.geometry);
                 renderer.push_quad(c.to_screen(collider.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
@@ -291,7 +291,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Draw cue
-        renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
+        renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;

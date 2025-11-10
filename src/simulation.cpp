@@ -17,6 +17,12 @@ struct collision_info
     float     penetration;
 };
 
+auto inv_mass(const collider& c) -> float
+{
+    if (c.mass <= 0) return 0;
+    return 1.0f / c.mass;
+}
+
 // Checks if two colliders are colliding, and returns the normal of the collision if the yare
 auto collision_test(const collider& a, const collider& b) -> std::optional<collision_info>
 {
@@ -104,7 +110,7 @@ void solve_contacts(std::vector<collider>& colliders,
         // baumgarte positional bias
         b[i] += 0.2f * std::max(ci.penetration, 0.0f);
 
-        // Fill constraint matrix
+        // fill constraint matrix
         for (int j = 0; j < N; ++j) {
             const auto& cj = contacts[j];
             const auto a2 = cj.a;
@@ -113,16 +119,16 @@ void solve_contacts(std::vector<collider>& colliders,
 
             auto val = 0.0f;
             if (a1 == a2) {
-                val += glm::dot(normal_i, normal_j) * colliders[a1].inv_mass();
+                val += glm::dot(normal_i, normal_j) * inv_mass(colliders[a1]);
             }
             if (b1 >= 0 && b1 == a2) {
-                val -= glm::dot(normal_i, normal_j) * colliders[b1].inv_mass();
+                val -= glm::dot(normal_i, normal_j) * inv_mass(colliders[b1]);
             }
             if (a1 == b2) {
-                val -= glm::dot(normal_i, normal_j) * colliders[a1].inv_mass();
+                val -= glm::dot(normal_i, normal_j) * inv_mass(colliders[a1]);
             }
             if (b1 >= 0 && b1 == b2) {
-                val += glm::dot(normal_i, normal_j) * colliders[b1].inv_mass();
+                val += glm::dot(normal_i, normal_j) * inv_mass(colliders[b1]);
             }
 
             A[i * N + j] = val;
@@ -152,23 +158,12 @@ void solve_contacts(std::vector<collider>& colliders,
     }
     auto& j = b; // in reduced echelon form, b now stores j
 
-    // clamp impulses to prevent negative push
-    //for (int i = 0; i < N; ++i) {
-    //    const contact& c = contacts[i];
-    //    if (colliders[c.b].mass < 0) {
-    //        const auto vn = glm::dot(colliders[c.a].vel, c.normal);
-    //        const auto max_impulse = colliders[c.a].mass * std::max(0.0f, -vn);
-    //        j[i] = std::min(j[i], max_impulse);
-    //    }
-    //    j[i] = std::max(0.0f, j[i]);
-    //}
-
     // apply impulses
     for (int i = 0; i < N; ++i) {
         const auto& c = contacts[i];
         const auto impulse = j[i] * c.normal;
-        colliders[c.a].vel -= colliders[c.a].inv_mass() * impulse;
-        colliders[c.b].vel += colliders[c.b].inv_mass() * impulse;
+        colliders[c.a].vel -= inv_mass(colliders[c.a]) * impulse;
+        colliders[c.b].vel += inv_mass(colliders[c.b]) * impulse;
     }
 }
 
@@ -188,8 +183,8 @@ void fix_positions(std::vector<collider>& colliders, const std::vector<contact>&
                 colliders[c.a].vel -= (1.0f + restitution) * vn * c.normal;
             }
         } else { // circle to circle
-            const auto inv_a = colliders[c.a].inv_mass();
-            const auto inv_b = colliders[c.b].inv_mass();
+            const auto inv_a = inv_mass(colliders[c.a]);
+            const auto inv_b = inv_mass(colliders[c.b]);
             const auto correction = c.penetration * 0.4f * c.normal / (inv_a + inv_b);
             colliders[c.a].pos -= inv_a * correction;
             colliders[c.b].pos += inv_b * correction;

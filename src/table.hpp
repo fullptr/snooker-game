@@ -26,14 +26,13 @@ struct table
     f32 width;
 
     std::vector<ball> balls;
-    std::vector<collider> colliders; // for the physics sim
+    simulation sim;
 
     auto dimensions() -> glm::vec2 { return {length, width}; }
     auto add_ball(glm::vec2 position, glm::vec4 colour)
     {
-        const auto col = collider{ .pos=position, .vel=glm::vec2{0, 0}, .geometry=circle_shape{ball_radius}, .mass=ball_mass };
-        colliders.push_back(col);
-        const auto b = ball{ .collider=(colliders.size()-1), .colour=colour };
+        const auto id = sim.add_circle(position, ball_radius, ball_mass);
+        const auto b = ball{ .collider=id, .colour=colour };
         balls.push_back(b);
     }
 };
