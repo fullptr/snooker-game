@@ -263,7 +263,6 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         while (accumulator > step) {
             pool_table.sim.step(step);
             accumulator -= step;
-
         }
 
         // Temp code to test deleting balls
@@ -274,14 +273,6 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
                 to_delete.insert(i);
             }
         }
-        for (const auto idx : to_delete) {
-            pool_table.sim.remove(pool_table.object_balls[idx].collider);
-        }
-        std::vector<ball> new_balls;
-        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
-            if (!to_delete.contains(i)) new_balls.push_back(pool_table.object_balls[i]);
-        }
-        pool_table.object_balls = new_balls;
 
         // Draw table
         const auto delta = 2.5f;

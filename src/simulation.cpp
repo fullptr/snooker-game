@@ -123,17 +123,18 @@ void solve_contacts(std::vector<collider>& colliders,
             const auto normal_j = cj.normal;
 
             auto val = 0.0f;
+            const auto dot = glm::dot(normal_i, normal_j);
             if (a1 == a2) {
-                val += glm::dot(normal_i, normal_j) * inv_mass(colliders[a1]);
+                val += dot * inv_mass(colliders[a1]);
             }
             if (b1 >= 0 && b1 == a2) {
-                val -= glm::dot(normal_i, normal_j) * inv_mass(colliders[b1]);
+                val -= dot * inv_mass(colliders[b1]);
             }
             if (a1 == b2) {
-                val -= glm::dot(normal_i, normal_j) * inv_mass(colliders[a1]);
+                val -= dot * inv_mass(colliders[a1]);
             }
             if (b1 >= 0 && b1 == b2) {
-                val += glm::dot(normal_i, normal_j) * inv_mass(colliders[b1]);
+                val += dot * inv_mass(colliders[b1]);
             }
 
             A[i * N + j] = val;
@@ -175,25 +176,11 @@ void solve_contacts(std::vector<collider>& colliders,
 void fix_positions(std::vector<collider>& colliders, const std::vector<contact>& contacts) {
     for (auto& c : contacts) {
         if (c.penetration <= 0) continue;
-
-        if (c.b < 0) { // circle to wall
-            // small positional correction
-            const auto percent = 0.2f;
-            colliders[c.a].pos += c.normal * c.penetration * percent;
-
-            // bounce along wall using restitution
-            const auto vn = glm::dot(colliders[c.a].vel, c.normal);
-            if (vn < 0.0f) {
-                const auto restitution = 0.8f;
-                colliders[c.a].vel -= (1.0f + restitution) * vn * c.normal;
-            }
-        } else { // circle to circle
-            const auto inv_a = inv_mass(colliders[c.a]);
-            const auto inv_b = inv_mass(colliders[c.b]);
-            const auto correction = c.penetration * 0.4f * c.normal / (inv_a + inv_b);
-            colliders[c.a].pos -= inv_a * correction;
-            colliders[c.b].pos += inv_b * correction;
-        }
+        const auto inv_a = inv_mass(colliders[c.a]);
+        const auto inv_b = inv_mass(colliders[c.b]);
+        const auto correction = c.penetration * 0.4f * c.normal / (inv_a + inv_b);
+        colliders[c.a].pos -= inv_a * correction;
+        colliders[c.b].pos += inv_b * correction;
     }
 }
 
