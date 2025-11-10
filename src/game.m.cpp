@@ -302,7 +302,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
-        // TODO: remove this - temp code to render the boxes
+        // Draw the boundary boxes
         for (const auto id : pool_table.border_boxes) {
             const auto& coll = pool_table.sim.get(id);
             const auto& box = std::get<box_shape>(coll.geometry);
