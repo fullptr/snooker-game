@@ -235,7 +235,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     auto ui       = snooker::ui_engine{&renderer};
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
-    pool_table.add_ball({50.0f, pool_table.width / 2.0f}, {1, 1, 1, 1}); // ball 0 is always the cue ball
+    pool_table.set_cue_ball({50.0f, pool_table.width / 2.0f});
     add_triangle(pool_table, {0.8f * pool_table.length, pool_table.width / 2.0f});
     add_border(pool_table); // TODO: replace with a better construction
     
@@ -278,7 +278,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         // Draw object balls
         const auto contact_ball = find_contact_ball(pool_table.sim.get_all(), cue_ball_coll.pos, c.to_board(window.mouse_pos()));
-        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) { // This assumes that balls[0] is the cue ball
+        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
             const auto& ball = pool_table.object_balls[i];
             const auto& coll = pool_table.sim.get(ball.collider);
             assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");

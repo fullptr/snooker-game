@@ -38,7 +38,7 @@ struct table
             sim.remove(cue_ball.collider);
         }
         const auto id = sim.add_circle(position, ball_radius, ball_mass);
-        cue_ball = ball{ .collider=id, .colour={0, 0, 0, 1}};
+        cue_ball = ball{ .collider=id, .colour={1, 1, 1, 1}};
     }
 
     void add_ball(glm::vec2 position, glm::vec4 colour)
