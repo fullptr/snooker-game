@@ -7,6 +7,11 @@
 
 namespace snooker {
 
+// Stores elements in a packed vector with each element assigned a unique ID.
+// Elements can be accessed by ID and they can be looped over.
+// The constraints that are maintained is that the IDs are stable and the 
+// underlying vector is packed contiguously. The ordering of elements can change
+// when elements are removed.
 template <typename T>
 class id_vector
 {
