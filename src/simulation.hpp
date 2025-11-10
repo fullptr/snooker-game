@@ -40,7 +40,7 @@ class id_vector
     std::size_t d_next = 0;
 
 public:
-    auto is_valid(std::size_t id) -> bool
+    auto is_valid(std::size_t id) const -> bool
     {
         return d_id_to_index.contains(id);
     }
@@ -78,6 +78,11 @@ public:
         assert_that(is_valid(id));
         return d_data[d_id_to_index[id]];
     }
+    auto get(std::size_t id) const -> const T&
+    {
+        assert_that(is_valid(id));
+        return d_data[d_id_to_index.at(id)];
+    }
 };
 
 void step_simulation(std::vector<collider>& colliders, float dt);
@@ -108,18 +113,18 @@ public:
         return d_colliders.get(id);
     }
 
+    auto get(std::size_t id) const -> const collider&
+    {
+        assert_that(d_colliders.is_valid(id));
+        return d_colliders.get(id);
+    }
+
     auto step(float dt) -> void
     {
         step_simulation(d_colliders.data(), dt);
     }
-
-    // TODO: Remove
-    auto get_all() -> std::vector<collider>&
-    {
-        return d_colliders.data();
-    }
     
-    auto is_valid(std::size_t id) -> bool
+    auto is_valid(std::size_t id) const -> bool
     {
         return d_colliders.is_valid(id);
     }
