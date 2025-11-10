@@ -121,15 +121,18 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
 }
 
+// TODO: store the box collider IDs on the table so we can use them to render
 auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
 
-    t.colliders.push_back(collider{ .pos=glm::vec2{-border_width/2.0f, t.width/2.0f},         .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=border_width, .height=(2*border_width + t.width) },  .mass=-1 });
-    t.colliders.push_back(collider{ .pos=glm::vec2{t.length+border_width/2.0f, t.width/2.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=border_width, .height=(2*border_width + t.width) },  .mass=-1 });
+    const auto b1 = t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width);
+    const auto b2 = t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width);
 
-    t.colliders.push_back(collider{ .pos=glm::vec2{t.length/2.0f, -border_width/2.0f},        .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=(2*border_width + t.length), .height=border_width }, .mass=-1 });
-    t.colliders.push_back(collider{ .pos=glm::vec2{t.length/2.0f, t.width+border_width/2.0f}, .vel=glm::vec2{0, 0}, .geometry=box_shape{ .width=(2*border_width + t.length), .height=border_width }, .mass=-1 });
+    const auto b3 = t.sim.add_box({t.length/2.0f, -border_width/2.0f},        2*border_width + t.length, border_width);
+    const auto b4 = t.sim.add_box({t.length/2.0f, t.width+border_width/2.0f}, 2*border_width + t.length, border_width);
+
+    t.border_boxes = {b1, b2, b3, b4};
 }
 
 struct raycast_info
@@ -174,31 +177,31 @@ auto raycast(glm::vec2 start, glm::vec2 end, const collider& cue_ball, const col
 
 struct hit_contact
 {
-    std::size_t ball_index;
+    std::size_t id;
     glm::vec2   cue_ball_pos;
 };
 
-auto find_contact_ball(const std::vector<collider>& colliders, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
+auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
 {
-    assert_that(!colliders.empty(), "balls should never be empty");
+    assert_that(!t.object_balls.empty(), "balls should never be empty");
+    assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).geometry), "cue ball must be a circle");
+    const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).geometry).radius;
 
     auto ret = std::optional<hit_contact>{};
     auto distance = std::numeric_limits<std::size_t>::max();
 
-    for (std::size_t i = 1; i != colliders.size(); ++i) {
-        const auto ray = raycast(start, end, colliders[0], colliders[i]);
+    for (const auto& ball : t.object_balls) {
+        const auto ray = raycast(start, end, t.sim.get(t.cue_ball.id), t.sim.get(ball.id));
         if (ray) {
-            assert_that(std::holds_alternative<circle_shape>(colliders[0].geometry), "cue ball must be a circle");
-            assert_that(std::holds_alternative<circle_shape>(colliders[i].geometry), "obj ball must be a circle");
-            const auto cue_ball_radius = std::get<circle_shape>(colliders[0].geometry).radius;
-            const auto obj_ball_radius = std::get<circle_shape>(colliders[i].geometry).radius;
+            assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).geometry), "obj ball must be a circle");
+            const auto obj_ball_radius = std::get<circle_shape>(t.sim.get(ball.id).geometry).radius;
 
             const auto rad_sum = cue_ball_radius + obj_ball_radius;
             const auto new_cue_pos = start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)));
             const auto ball_dist = glm::length(new_cue_pos - start);
             if (ball_dist < distance) {
                 distance = ball_dist;
-                ret = hit_contact{ .ball_index=i, .cue_ball_pos=new_cue_pos };
+                ret = hit_contact{ .id=ball.id, .cue_ball_pos=new_cue_pos };
             }
         }
     }
@@ -234,7 +237,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     auto ui       = snooker::ui_engine{&renderer};
 
     auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
-    pool_table.add_ball({50.0f, pool_table.width / 2.0f}, {1, 1, 1, 1}); // ball 0 is always the cue ball
+    pool_table.set_cue_ball({50.0f, pool_table.width / 2.0f});
     add_triangle(pool_table, {0.8f * pool_table.length, pool_table.width / 2.0f});
     add_border(pool_table); // TODO: replace with a better construction
     
@@ -245,53 +248,69 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         
         const auto c = converter{window.dimensions(), pool_table.dimensions(), 0.9f};
         
-        auto& cue_ball = pool_table.colliders[pool_table.balls[0].collider];
-        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball.pos);
+        const auto& cue_ball_ball = pool_table.cue_ball;
+        auto& cue_ball_coll = pool_table.sim.get(cue_ball_ball.id);
+        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
         
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>()) {
-                cue_ball.vel = 200.0f * aim_direction;
+                cue_ball_coll.vel = 200.0f * aim_direction;
             }
         }
 
         accumulator += dt;
         while (accumulator > step) {
-            step_simulation(pool_table.colliders, dt);
+            pool_table.sim.step(step);
             accumulator -= step;
         }
 
+        // Temp code to test deleting balls
+        std::unordered_set<std::size_t> to_delete;
+        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
+            const auto pos = pool_table.sim.get(pool_table.object_balls[i].id).pos;
+            if (pos.x < 20 && pos.y < 20) {
+                to_delete.insert(i);
+            }
+        }
 
         // Draw table
         const auto delta = 2.5f;
         renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(pool_table.length+2*delta), c.to_screen(pool_table.width+2*delta), board_colour);
 
-        // Draw balls
-        const auto& cue_ball_ball = pool_table.balls[0];
-        const auto contact_ball = find_contact_ball(pool_table.colliders, cue_ball.pos, c.to_board(window.mouse_pos()));
-        for (std::size_t i = 0; i != pool_table.balls.size(); ++i) { // This assumes that balls[0] is the cue ball
-            const auto& ball = pool_table.balls[i];
-            const auto& col = pool_table.colliders[ball.collider];
-            assert_that(std::holds_alternative<circle_shape>(col.geometry), "only supporting balls for now");
-            const auto radius = std::get<circle_shape>(col.geometry).radius;
-
-            if (contact_ball && contact_ball->ball_index == i) {
-                renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
-                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(cue_ball_ball.colour, 0.5f), c.to_screen(radius));
-            }
-            renderer.push_circle(c.to_screen(col.pos), ball.colour, c.to_screen(radius));
+        // Draw cue ball
+        {
+            const auto& ball = pool_table.cue_ball;
+            const auto& coll = pool_table.sim.get(ball.id);
+            assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
+            const auto radius = std::get<circle_shape>(coll.geometry).radius;
+            renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
-        // TODO: remove this - temp code to render the boxes
-        for (const auto& collider : pool_table.colliders) {
-            if (std::holds_alternative<box_shape>(collider.geometry)) {
-                const auto& box = std::get<box_shape>(collider.geometry);
-                renderer.push_quad(c.to_screen(collider.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
+        // Draw object balls
+        const auto contact_ball = find_contact_ball(pool_table, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
+        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
+            const auto& ball = pool_table.object_balls[i];
+            const auto& coll = pool_table.sim.get(ball.id);
+            assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
+            const auto radius = std::get<circle_shape>(coll.geometry).radius;
+
+            if (contact_ball && contact_ball->id == ball.id) {
+                renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
+                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(cue_ball_ball.colour, 0.5f), c.to_screen(radius));
             }
+            renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
+        }
+
+        // Draw the boundary boxes
+        for (const auto id : pool_table.border_boxes) {
+            const auto& coll = pool_table.sim.get(id);
+            const auto& box = std::get<box_shape>(coll.geometry);
+            renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
         }
 
         // Draw cue
-        renderer.push_line(c.to_screen(cue_ball.pos), c.to_screen(cue_ball.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
+        renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
