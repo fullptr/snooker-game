@@ -118,6 +118,17 @@ public:
     {
         return d_colliders.data();
     }
+    
+    auto is_valid(std::size_t id) -> bool
+    {
+        return d_colliders.is_valid(id);
+    }
+
+    auto remove(std::size_t id) -> void
+    {
+        assert_that(is_valid(id));
+        d_colliders.remove_collider(id);
+    }
 };
 
 }

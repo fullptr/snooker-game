@@ -246,7 +246,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         
         const auto c = converter{window.dimensions(), pool_table.dimensions(), 0.9f};
         
-        const auto& cue_ball_ball = pool_table.balls[0];
+        const auto& cue_ball_ball = pool_table.cue_ball;
         auto& cue_ball_coll = pool_table.sim.get(cue_ball_ball.collider);
         const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
         
@@ -267,10 +267,19 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         const auto delta = 2.5f;
         renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(pool_table.length+2*delta), c.to_screen(pool_table.width+2*delta), board_colour);
 
-        // Draw balls
+        // Draw cue ball
+        {
+            const auto& ball = pool_table.cue_ball;
+            const auto& coll = pool_table.sim.get(ball.collider);
+            assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
+            const auto radius = std::get<circle_shape>(coll.geometry).radius;
+            renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
+        }
+
+        // Draw object balls
         const auto contact_ball = find_contact_ball(pool_table.sim.get_all(), cue_ball_coll.pos, c.to_board(window.mouse_pos()));
-        for (std::size_t i = 0; i != pool_table.balls.size(); ++i) { // This assumes that balls[0] is the cue ball
-            const auto& ball = pool_table.balls[i];
+        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) { // This assumes that balls[0] is the cue ball
+            const auto& ball = pool_table.object_balls[i];
             const auto& coll = pool_table.sim.get(ball.collider);
             assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.geometry).radius;
