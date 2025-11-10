@@ -15,7 +15,7 @@ constexpr auto break_speed = 983.49f; // cm
 
 struct ball
 {
-    std::size_t collider;
+    std::size_t id;
     glm::vec4   colour;
 };
 
@@ -37,13 +37,13 @@ struct table
     void set_cue_ball(glm::vec2 position)
     {
         const auto id = sim.add_circle(position, ball_radius, ball_mass);
-        cue_ball = ball{ .collider=id, .colour={1, 1, 1, 1}};
+        cue_ball = ball{ .id=id, .colour={1, 1, 1, 1}};
     }
 
     void add_ball(glm::vec2 position, glm::vec4 colour)
     {
         const auto id = sim.add_circle(position, ball_radius, ball_mass);
-        const auto b = ball{ .collider=id, .colour=colour };
+        const auto b = ball{ .id=id, .colour=colour };
         object_balls.push_back(b);
     }
 };
