@@ -31,6 +31,7 @@ struct table
     ball                     cue_ball;
     std::vector<ball>        object_balls;
     std::vector<std::size_t> border_boxes;
+    std::vector<std::size_t> pockets;
 
     auto dimensions() -> glm::vec2 { return {length, width}; }
 
@@ -45,6 +46,12 @@ struct table
         const auto id = sim.add_circle(position, ball_radius, ball_mass);
         const auto b = ball{ .id=id, .colour=colour };
         object_balls.push_back(b);
+    }
+
+    void add_pocket(glm::vec2 position, float radius)
+    {
+        const auto id = sim.add_circle(position, radius, -1, true);
+        pockets.push_back(id);
     }
 };
 

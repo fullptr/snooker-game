@@ -236,20 +236,21 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     auto timer    = snooker::timer{};
     auto ui       = snooker::ui_engine{&renderer};
 
-    auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
-    pool_table.set_cue_ball({50.0f, pool_table.width / 2.0f});
-    add_triangle(pool_table, {0.8f * pool_table.length, pool_table.width / 2.0f});
-    add_border(pool_table); // TODO: replace with a better construction
+    auto t = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
+    t.set_cue_ball({50.0f, t.width / 2.0f});
+    add_triangle(t, {0.8f * t.length, t.width / 2.0f});
+    add_border(t); // TODO: replace with a better construction
+    t.add_pocket({50.0f, 20.0f}, 5);
     
     double accumulator = 0.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
         
-        const auto c = converter{window.dimensions(), pool_table.dimensions(), 0.9f};
+        const auto c = converter{window.dimensions(), t.dimensions(), 0.9f};
         
-        const auto& cue_ball_ball = pool_table.cue_ball;
-        auto& cue_ball_coll = pool_table.sim.get(cue_ball_ball.id);
+        const auto& cue_ball_ball = t.cue_ball;
+        auto& cue_ball_coll = t.sim.get(cue_ball_ball.id);
         const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
         
         for (const auto event : window.events()) {
@@ -261,14 +262,28 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         accumulator += dt;
         while (accumulator > step) {
-            pool_table.sim.step(step);
+            t.sim.step(step);
             accumulator -= step;
+        }
+        
+        // Handle pocketed balls
+        for (const auto& ball : t.object_balls) {
+            for (const auto pocket : t.pockets) {
+                assert_that(std::holds_alternative<circle_shape>(t.sim.get(pocket).geometry), "pockets must be circles for now");
+                assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).geometry), "balls must be circles for now");
+                const auto ball_r = std::get<circle_shape>(t.sim.get(ball.id).geometry).radius;
+                const auto pock_r = std::get<circle_shape>(t.sim.get(pocket).geometry).radius;
+                const auto dist = glm::distance(t.sim.get(ball.id).pos, t.sim.get(pocket).pos);
+                if (dist + ball_r < pock_r) {
+                    std::print("pocketed!\n");
+                }
+            }
         }
 
         // Temp code to test deleting balls
         std::unordered_set<std::size_t> to_delete;
-        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
-            const auto pos = pool_table.sim.get(pool_table.object_balls[i].id).pos;
+        for (std::size_t i = 0; i != t.object_balls.size(); ++i) {
+            const auto pos = t.sim.get(t.object_balls[i].id).pos;
             if (pos.x < 20 && pos.y < 20) {
                 to_delete.insert(i);
             }
@@ -276,22 +291,27 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         // Draw table
         const auto delta = 2.5f;
-        renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(pool_table.length+2*delta), c.to_screen(pool_table.width+2*delta), board_colour);
+        renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(t.length+2*delta), c.to_screen(t.width+2*delta), board_colour);
+
+        // Draw pockets
+        for (const auto id : t.pockets) {
+            const auto& coll = t.sim.get(id);
+            renderer.push_circle(c.to_screen(coll.pos), {0, 0, 0, 1}, c.to_screen(std::get<circle_shape>(coll.geometry).radius));
+        }
 
         // Draw cue ball
         {
-            const auto& ball = pool_table.cue_ball;
-            const auto& coll = pool_table.sim.get(ball.id);
+            const auto& ball = t.cue_ball;
+            const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.geometry).radius;
             renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
         // Draw object balls
-        const auto contact_ball = find_contact_ball(pool_table, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
-        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
-            const auto& ball = pool_table.object_balls[i];
-            const auto& coll = pool_table.sim.get(ball.id);
+        const auto contact_ball = find_contact_ball(t, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
+        for (const auto& ball : t.object_balls) {
+            const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.geometry).radius;
 
@@ -303,8 +323,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Draw the boundary boxes
-        for (const auto id : pool_table.border_boxes) {
-            const auto& coll = pool_table.sim.get(id);
+        for (const auto id : t.border_boxes) {
+            const auto& coll = t.sim.get(id);
             const auto& box = std::get<box_shape>(coll.geometry);
             renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
         }
