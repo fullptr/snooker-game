@@ -233,10 +233,10 @@ void simulation::step(float frame_dt)
                 auto& ci = colliders[i];
                 auto& cj = colliders[j];
                 if (const auto col = collision_test(ci, cj)) {
-                    if (ci.attractor && cj.attractor) {
+                    if (std::holds_alternative<attractor_body>(ci.body) && std::holds_alternative<attractor_body>(cj.body)) {
                         // nothing to do, attractors don't affect each other
                     }
-                    else if (ci.attractor) {
+                    else if (std::holds_alternative<attractor_body>(ci.body)) {
                         const auto dist = glm::length(ci.pos - cj.pos);
                         const auto direction = -col->normal;
                         const auto strength = col->penetration * 20.0f;
@@ -245,7 +245,7 @@ void simulation::step(float frame_dt)
                         vel += direction * attraction * dt;
                         vel *= (1.0f - 0.2f * strength * dt);
                     }
-                    else if (cj.attractor) {
+                    else if (std::holds_alternative<attractor_body>(cj.body)) {
                         const auto dist = glm::length(ci.pos - cj.pos);
                         const auto direction = col->normal;
                         const auto strength = col->penetration * 20.0f;

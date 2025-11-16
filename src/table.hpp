@@ -38,19 +38,19 @@ struct table
 
     void set_cue_ball(glm::vec2 position)
     {
-        auto id = sim.add_circle(position, ball_radius, ball_mass);
+        auto id = sim.add_dynamic_circle(position, ball_radius, ball_mass);
         cue_ball = ball{ .id=id, .colour={1, 1, 1, 1}};
     }
 
     void add_ball(glm::vec2 position, glm::vec4 colour)
     {
-        auto id = sim.add_circle(position, ball_radius, ball_mass);
+        auto id = sim.add_dynamic_circle(position, ball_radius, ball_mass);
         object_balls.emplace_back(id, colour);
     }
 
     void add_pocket(glm::vec2 position, float radius)
     {
-        auto id = sim.add_circle(position, radius, -1, true);
+        auto id = sim.add_attractor_circle(position, radius);
         pockets.push_back(id);
     }
 };

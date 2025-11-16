@@ -28,22 +28,23 @@ struct static_body
 {
 };
 
+struct attractor_body
+{
+};
+
 struct dynamic_body
 {
     float     mass;
     glm::vec2 vel;
 };
 
-using body_type = std::variant<static_body, dynamic_body>;
+using body_type = std::variant<static_body, attractor_body, dynamic_body>;
 
 struct collider
 {
     glm::vec2  pos;
     body_type  body;
     shape_type shape;
-
-    // if true, this pulls colliders towards it
-    bool attractor = false;
 };
 
 class simulation
@@ -51,9 +52,16 @@ class simulation
     id_vector<collider> d_colliders;
 
 public:
-    auto add_circle(glm::vec2 pos, float radius, float mass, bool attractor = false) -> std::size_t
+    auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
     {
-        const auto col = collider{ .pos=pos, .body=dynamic_body{ .mass=mass, .vel={0.0f, 0.0f} }, .shape=circle_shape{radius}, .attractor=attractor };
+        const auto col = collider{ .pos=pos, .body=dynamic_body{ .mass=mass, .vel={0.0f, 0.0f} }, .shape=circle_shape{radius} };
+        const auto id = d_colliders.insert(col);
+        return id;
+    }
+
+    auto add_attractor_circle(glm::vec2 pos, float radius) -> std::size_t
+    {
+        const auto col = collider{ .pos=pos, .body=attractor_body{}, .shape=circle_shape{radius} };
         const auto id = d_colliders.insert(col);
         return id;
     }
