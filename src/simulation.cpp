@@ -83,12 +83,13 @@ auto collision_circle_box(glm::vec2 pos_a, glm::vec2 pos_b, circle_shape shape_a
     return {};
 }
 
-auto collision_circle_line2(glm::vec2 circle_pos,
-                           float circle_radius,
-                           glm::vec2 line_start,
-                           glm::vec2 line_end)
-    -> std::optional<collision_info>
+auto collision_circle_line(glm::vec2 pos_a, glm::vec2 pos_b, circle_shape shape_a, line_shape shape_b) -> std::optional<collision_info>
 {
+    const auto circle_pos = pos_a;
+    const auto circle_radius = shape_a.radius;
+    const auto line_start = pos_b + shape_b.start;
+    const auto line_end = pos_b + shape_b.end;
+
     // degenerate line
     if (line_start == line_end) {
         const auto diff = line_start - circle_pos;
@@ -111,11 +112,6 @@ auto collision_circle_line2(glm::vec2 circle_pos,
        
     const auto normal = (dist > 0.0f) ? diff / dist : glm::vec2{1, 0}; // arbitrary normal if center exactly on line
     return collision_info{normal, circle_radius - dist};
-}
-
-auto collision_circle_line(glm::vec2 pos_a, glm::vec2 pos_b, circle_shape shape_a, line_shape shape_b) -> std::optional<collision_info>
-{
-    return collision_circle_line2(pos_a, shape_a.radius, pos_b + shape_b.start, pos_b + shape_b.end);
 }
 
 auto collision_box_box(glm::vec2 pos_a, glm::vec2 pos_b, box_shape shape_a, box_shape shape_b) -> std::optional<collision_info>
