@@ -17,17 +17,16 @@ struct collision_info
     float     penetration;
 };
 
-auto inv_mass(const collider& c) -> float
-{
-    if (!std::holds_alternative<dynamic_body>(c.body)) return 0;
-    const auto mass = std::get<dynamic_body>(c.body).mass;
-    return 1.0f / mass;
-}
-
 auto safe_inverse(float x) -> float
 {
     if (x == 0.0f) { return 0.0f; }
     return 1.0f / x;
+}
+
+auto inv_mass(const collider& c) -> float
+{
+    if (!std::holds_alternative<dynamic_body>(c.body)) return 0;
+    return safe_inverse(std::get<dynamic_body>(c.body).mass);
 }
 
 auto velocity(const collider& c) -> glm::vec2

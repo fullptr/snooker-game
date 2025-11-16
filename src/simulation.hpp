@@ -13,7 +13,7 @@ namespace snooker {
 
 struct circle_shape
 {
-    float     radius;
+    float radius;
 };
 
 struct box_shape
@@ -22,7 +22,13 @@ struct box_shape
     float height;
 };
 
-using shape_type = std::variant<circle_shape, box_shape>;
+struct line_shape
+{
+    glm::vec2 start; // start and end are both offsets from the position
+    glm::vec2 end;
+};
+
+using shape_type = std::variant<circle_shape, box_shape, line_shape>;
 
 struct static_body
 {
