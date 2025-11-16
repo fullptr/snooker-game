@@ -17,55 +17,163 @@ struct collision_info
     float     penetration;
 };
 
+auto safe_inverse(float x) -> float
+{
+    if (x == 0.0f) { return 0.0f; }
+    return 1.0f / x;
+}
+
 auto inv_mass(const collider& c) -> float
 {
-    if (c.mass <= 0) return 0;
-    return 1.0f / c.mass;
+    if (!std::holds_alternative<dynamic_body>(c.body)) return 0;
+    return safe_inverse(std::get<dynamic_body>(c.body).mass);
+}
+
+auto velocity(const collider& c) -> glm::vec2
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        return std::get<dynamic_body>(c.body).vel;
+    }
+    return {0.0f, 0.0f};
+}
+
+auto apply_impulse(collider& c, glm::vec2 impulse) -> void
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        auto& body = std::get<dynamic_body>(c.body);
+        body.vel += impulse * safe_inverse(body.mass);
+    }
+}
+
+auto flip_normal(const collision_info& info) -> collision_info
+{
+    auto copy = info;
+    copy.normal *= -1;
+    return copy;
+}
+
+auto collision_circle_circle(glm::vec2 pos_a, glm::vec2 pos_b, circle_shape shape_a, circle_shape shape_b) -> std::optional<collision_info>
+{
+    const auto delta = pos_b - pos_a;
+    const auto dist = glm::length(delta);
+    const auto r = shape_a.radius + shape_b.radius;
+    if (dist < r) {
+        const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
+        return collision_info{n, r - dist};
+    }
+    return {};
+}
+
+auto collision_circle_box(glm::vec2 pos_a, glm::vec2 pos_b, circle_shape shape_a, box_shape shape_b) -> std::optional<collision_info>
+{
+    const auto half_extents = glm::vec2{shape_b.width, shape_b.height} / 2.0f;
+            
+    // closest point in the box to the circles centre
+    const auto P = glm::clamp(pos_a, pos_b - half_extents, pos_b + half_extents);
+
+    const auto delta = P - pos_a;
+    const auto dist = glm::length(delta);
+    if (dist < shape_a.radius) { // collision
+        if (pos_a != P) { // circle centre is outside the box (the clamp moved the centre)
+            const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
+            return collision_info{n, shape_a.radius - dist};
+        }
+        assert_that(false, "TODO: make this collision happen");
+    }
+    return {};
+}
+
+auto collision_circle_line(glm::vec2 pos_a, glm::vec2 pos_b, circle_shape shape_a, line_shape shape_b) -> std::optional<collision_info>
+{
+    const auto circle_pos = pos_a;
+    const auto circle_radius = shape_a.radius;
+    const auto line_start = pos_b + shape_b.start;
+    const auto line_end = pos_b + shape_b.end;
+
+    // degenerate line
+    if (line_start == line_end) {
+        const auto diff = line_start - circle_pos;
+        const auto dist = glm::length(diff);
+        if (dist >= circle_radius) return {};
+        
+        const auto normal = (dist > 0.0f) ? diff / dist : glm::vec2(1, 0); // arbitrary normal if center exactly on line
+        return collision_info{normal, circle_radius - dist};
+    }
+    
+    // project circle center onto line segment
+    const auto line_vec = line_end - line_start;
+    const auto line_len_sq = glm::dot(line_vec, line_vec);
+    const auto t = glm::clamp(glm::dot(circle_pos - line_start, line_vec) / line_len_sq, 0.0f, 1.0f);
+
+    const auto closest = line_start + t * line_vec;
+    const auto diff = closest - circle_pos;
+    const auto dist = glm::length(diff);
+    if (dist >= circle_radius) return {}; // no collision
+       
+    const auto normal = (dist > 0.0f) ? diff / dist : glm::vec2{1, 0}; // arbitrary normal if center exactly on line
+    return collision_info{normal, circle_radius - dist};
+}
+
+auto collision_box_box(glm::vec2 pos_a, glm::vec2 pos_b, box_shape shape_a, box_shape shape_b) -> std::optional<collision_info>
+{
+    assert_that(false, "unhandled collision type! box-box");
+    return {};
+}
+
+auto collision_box_line(glm::vec2 pos_a, glm::vec2 pos_b, box_shape shape_a, line_shape shape_b) -> std::optional<collision_info>
+{
+    assert_that(false, "unhandled collision type! box-line");
+    return {};
+}
+
+auto collision_line_line(glm::vec2 pos_a, glm::vec2 pos_b, line_shape shape_a, line_shape shape_b) -> std::optional<collision_info>
+{
+    assert_that(false, "unhandled collision type! line-line");
+    return {};
 }
 
 // Checks if two colliders are colliding, and returns the normal of the collision if the yare
 auto collision_test(const collider& a, const collider& b) -> std::optional<collision_info>
 {
-    if (a.mass < 0 && b.mass < 0) return {}; // static bodies, so no collision
+    // only check for collisions between two dynamic bodies
+    if (!std::holds_alternative<dynamic_body>(a.body) && !std::holds_alternative<dynamic_body>(b.body)) return {};
 
     return std::visit(overloaded{
-        [&](const circle_shape& A, const circle_shape& B) -> std::optional<collision_info> {
-            const auto delta = b.pos - a.pos;
-            const auto dist = glm::length(delta);
-            const auto r = A.radius + B.radius;
-            if (dist < r) {
-                const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
-                return collision_info{n, r - dist};
-            }
-            return {};
+        [&](const circle_shape& A, const circle_shape& B) {
+            return collision_circle_circle(a.pos, b.pos, A, B);
         },
-        [&](const circle_shape& A, const box_shape& B) -> std::optional<collision_info> {
-            const auto half_extents = glm::vec2{B.width, B.height} / 2.0f;
-            
-            // closest point in the box to the circles centre
-            const auto P = glm::clamp(a.pos, b.pos - half_extents, b.pos + half_extents);
+        [&](const circle_shape& A, const box_shape& B) {
+            return collision_circle_box(a.pos, b.pos, A, B);
+        },
+        [&](const circle_shape& A, const line_shape& B) {
+            return collision_circle_line(a.pos, b.pos, A, B);
+        },
 
-            const auto delta = P - a.pos;
-            const auto dist = glm::length(delta);
-            if (dist < A.radius) { // collision
-                if (a.pos != P) { // circle centre is outside the box (the clamp moved the centre)
-                    const auto n = (dist > 1e-6f) ? delta / dist : glm::vec2(1, 0);
-                    return collision_info{n, A.radius - dist};
-                }
-                assert_that(false, "TODO: make this collision happen");
-            }
-            return {};
+        [&](const box_shape& A, const circle_shape& B) {
+            return collision_circle_box(b.pos, a.pos, B, A).transform(flip_normal);
         },
-        [&](const box_shape& A, const circle_shape& B) -> std::optional<collision_info> {
-            auto ret = collision_test(b, a); // reverse
-            if (ret) ret->normal = -ret->normal;
-            return ret;
+        [&](const box_shape& A, const box_shape& B) {
+            return collision_box_box(a.pos, b.pos, A, B);
         },
+        [&](const box_shape& A, const line_shape& B) {
+            return collision_box_line(a.pos, b.pos, A, B);
+        },
+
+        [&](const line_shape& A, const circle_shape& B) {
+            return collision_circle_line(b.pos, a.pos, B, A).transform(flip_normal);
+        },
+        [&](const line_shape& A, const box_shape& B) {
+            return collision_box_line(b.pos, a.pos, B, A).transform(flip_normal);
+        },
+        [&](const line_shape& A, const line_shape& B) {
+            return collision_line_line(a.pos, b.pos, A, B);
+        },
+
         [&](auto&&, auto&&) -> std::optional<collision_info> {
             assert_that(false, "unhandled collision type!");
             return {};
         }
-    }, a.geometry, b.geometry);
+    }, a.shape, b.shape);
 }
 
 auto generate_contacts(const std::vector<collider>& colliders) -> std::vector<contact>
@@ -106,7 +214,7 @@ void solve_contacts(std::vector<collider>& colliders,
         const auto b1 = ci.b;
         const auto normal_i = ci.normal;
 
-        const auto rv = (b1 >= 0 ? colliders[b1].vel : glm::vec2(0)) - colliders[a1].vel;
+        const auto rv = velocity(colliders[b1]) - velocity(colliders[a1]);
         const auto rel_vel = glm::dot(rv, normal_i);
 
         // only apply restitution if moving into contact
@@ -168,8 +276,8 @@ void solve_contacts(std::vector<collider>& colliders,
     for (int i = 0; i < N; ++i) {
         const auto& c = contacts[i];
         const auto impulse = j[i] * c.normal;
-        colliders[c.a].vel -= inv_mass(colliders[c.a]) * impulse;
-        colliders[c.b].vel += inv_mass(colliders[c.b]) * impulse;
+        apply_impulse(colliders[c.a], -impulse);
+        apply_impulse(colliders[c.b], impulse);
     }
 }
 
@@ -196,7 +304,9 @@ void simulation::step(float frame_dt)
     for (int i = 0; i != num_substeps; ++i) {
         // 1. integrate positions
         for (auto& c : colliders) {
-            c.pos += c.vel * dt;
+            if (std::holds_alternative<dynamic_body>(c.body)) {
+                c.pos += std::get<dynamic_body>(c.body).vel * dt;
+            }
         }
     
         // 2. generate contacts and handle attraction
@@ -207,24 +317,26 @@ void simulation::step(float frame_dt)
                 auto& ci = colliders[i];
                 auto& cj = colliders[j];
                 if (const auto col = collision_test(ci, cj)) {
-                    if (ci.attractor && cj.attractor) {
+                    if (std::holds_alternative<attractor_body>(ci.body) && std::holds_alternative<attractor_body>(cj.body)) {
                         // nothing to do, attractors don't affect each other
                     }
-                    else if (ci.attractor) {
+                    else if (std::holds_alternative<attractor_body>(ci.body)) {
                         const auto dist = glm::length(ci.pos - cj.pos);
                         const auto direction = -col->normal;
                         const auto strength = col->penetration * 20.0f;
                         const auto attraction = strength * strength;
-                        cj.vel += direction * attraction * dt;
-                        cj.vel *= (1.0f - 0.2f * strength * dt);
+                        auto& vel = std::get<dynamic_body>(cj.body).vel;
+                        vel += direction * attraction * dt;
+                        vel *= (1.0f - 0.2f * strength * dt);
                     }
-                    else if (cj.attractor) {
+                    else if (std::holds_alternative<attractor_body>(cj.body)) {
                         const auto dist = glm::length(ci.pos - cj.pos);
                         const auto direction = col->normal;
                         const auto strength = col->penetration * 20.0f;
                         const auto attraction = strength * strength;
-                        ci.vel += direction * attraction * dt;
-                        ci.vel *= (1.0f - 0.2f * strength * dt);
+                        auto& vel = std::get<dynamic_body>(ci.body).vel;
+                        vel += direction * attraction * dt;
+                        vel *= (1.0f - 0.2f * strength * dt);
                     }
                     else {
                         contacts.push_back({ i, j, col->normal, col->penetration });
@@ -242,9 +354,12 @@ void simulation::step(float frame_dt)
         // 5. time-step–dependent global damping
         const auto damping = std::exp(-1.1f * dt); 
         for (auto& c : colliders) {
-            c.vel *= damping;
-            if (glm::length(c.vel) < 0.01f) {
-                c.vel = glm::vec2{0, 0};
+            if (std::holds_alternative<dynamic_body>(c.body)) {
+                auto& vel = std::get<dynamic_body>(c.body).vel;
+                vel *= damping;
+                if (glm::length(vel) < 0.01f) {
+                    vel = glm::vec2{0, 0};
+                }
             }
         }
     }
