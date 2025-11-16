@@ -72,10 +72,17 @@ public:
         return id;
     }
 
-    // Currently only allows for static boxes
     auto add_box(glm::vec2 centre, float width, float height) -> std::size_t
     {
         const auto col = collider{ .pos=centre, .body=static_body{}, .shape=box_shape{.width=width, .height=height} };
+        const auto id = d_colliders.insert(col);
+        return id;
+    }
+
+    auto add_static_line(glm::vec2 start, glm::vec2 end) -> std::size_t
+    {
+        // TODO: The position should probably be the centre of the line? Maybe?
+        const auto col = collider{ .pos=glm::vec2{0, 0}, .body=static_body{}, .shape=line_shape{ .start=start, .end=end} };
         const auto id = d_colliders.insert(col);
         return id;
     }

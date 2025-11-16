@@ -250,6 +250,11 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     t.add_pocket({0.0f,            t.width}, pocket_radius);
     t.add_pocket({t.length / 2.0f, t.width}, pocket_radius);
     t.add_pocket({t.length,        t.width}, pocket_radius);
+
+    // Line test
+    const auto start = glm::vec2{20, 20};
+    const auto end = glm::vec2{150, 30};
+    t.sim.add_static_line(start, end);
     
     double accumulator = 0.0;
     while (window.is_running()) {
@@ -334,6 +339,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             const auto& box = std::get<box_shape>(coll.shape);
             renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
         }
+
+        // Draw TEMP line code
+        renderer.push_line(c.to_screen(start), c.to_screen(end), from_hex(0x73380b), 2.0f);
 
         // Draw cue
         renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
