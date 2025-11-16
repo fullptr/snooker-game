@@ -146,12 +146,12 @@ struct raycast_info
 
 auto raycast(glm::vec2 start, glm::vec2 end, const collider& cue_ball, const collider& other) -> std::optional<raycast_info>
 {
-    assert_that(std::holds_alternative<circle_shape>(cue_ball.geometry), "cue ball must be a circle");
+    assert_that(std::holds_alternative<circle_shape>(cue_ball.shape), "cue ball must be a circle");
 
     return std::visit(overloaded{
         [&](const circle_shape& shape) -> std::optional<raycast_info> {
-            const auto cue_ball_radius = std::get<circle_shape>(cue_ball.geometry).radius;
-            const auto other_radius    = std::get<circle_shape>(other.geometry).radius;
+            const auto cue_ball_radius = std::get<circle_shape>(cue_ball.shape).radius;
+            const auto other_radius    = std::get<circle_shape>(other.shape).radius;
         
             const auto dir = glm::normalize(end - start);
             const auto v = other.pos - start;
@@ -174,7 +174,7 @@ auto raycast(glm::vec2 start, glm::vec2 end, const collider& cue_ball, const col
         [](auto&&) -> std::optional<raycast_info> {
             return {};
         }
-    }, other.geometry);
+    }, other.shape);
 }
 
 struct hit_contact
@@ -187,8 +187,8 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
 {
     if (t.object_balls.empty()) { return {}; }
     
-    assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).geometry), "cue ball must be a circle");
-    const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).geometry).radius;
+    assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).shape), "cue ball must be a circle");
+    const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).shape).radius;
 
     auto ret = std::optional<hit_contact>{};
     auto distance = std::numeric_limits<std::size_t>::max();
@@ -196,8 +196,8 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
     for (const auto& ball : t.object_balls) {
         const auto ray = raycast(start, end, t.sim.get(t.cue_ball.id), t.sim.get(ball.id));
         if (ray) {
-            assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).geometry), "obj ball must be a circle");
-            const auto obj_ball_radius = std::get<circle_shape>(t.sim.get(ball.id).geometry).radius;
+            assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).shape), "obj ball must be a circle");
+            const auto obj_ball_radius = std::get<circle_shape>(t.sim.get(ball.id).shape).radius;
 
             const auto rad_sum = cue_ball_radius + obj_ball_radius;
             const auto new_cue_pos = start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)));
@@ -264,7 +264,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>()) {
-                cue_ball_coll.vel = 400.0f * aim_direction;
+                std::get<dynamic_body>(cue_ball_coll.body).vel = 400.0f * aim_direction;
             }
         }
 
@@ -277,10 +277,10 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         // Handle pocketed balls
         for (auto& ball : t.object_balls) {
             for (const auto& pocket : t.pockets) {
-                assert_that(std::holds_alternative<circle_shape>(t.sim.get(pocket).geometry), "pockets must be circles for now");
-                assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).geometry), "balls must be circles for now");
-                const auto ball_r = std::get<circle_shape>(t.sim.get(ball.id).geometry).radius;
-                const auto pock_r = std::get<circle_shape>(t.sim.get(pocket).geometry).radius;
+                assert_that(std::holds_alternative<circle_shape>(t.sim.get(pocket).shape), "pockets must be circles for now");
+                assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).shape), "balls must be circles for now");
+                const auto ball_r = std::get<circle_shape>(t.sim.get(ball.id).shape).radius;
+                const auto pock_r = std::get<circle_shape>(t.sim.get(pocket).shape).radius;
                 const auto dist = glm::distance(t.sim.get(ball.id).pos, t.sim.get(pocket).pos);
                 if (dist + ball_r < pock_r) {
                     ball.is_pocketed = true;
@@ -302,15 +302,15 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         // Draw pockets
         for (const auto& id : t.pockets) {
             const auto& coll = t.sim.get(id);
-            renderer.push_circle(c.to_screen(coll.pos), from_hex(0x422007), c.to_screen(std::get<circle_shape>(coll.geometry).radius));
+            renderer.push_circle(c.to_screen(coll.pos), from_hex(0x422007), c.to_screen(std::get<circle_shape>(coll.shape).radius));
         }
 
         // Draw cue ball
         {
             const auto& ball = t.cue_ball;
             const auto& coll = t.sim.get(ball.id);
-            assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
-            const auto radius = std::get<circle_shape>(coll.geometry).radius;
+            assert_that(std::holds_alternative<circle_shape>(coll.shape), "only supporting balls for now");
+            const auto radius = std::get<circle_shape>(coll.shape).radius;
             renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
@@ -318,8 +318,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         const auto contact_ball = find_contact_ball(t, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
         for (const auto& ball : t.object_balls) {
             const auto& coll = t.sim.get(ball.id);
-            assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
-            const auto radius = std::get<circle_shape>(coll.geometry).radius;
+            assert_that(std::holds_alternative<circle_shape>(coll.shape), "only supporting balls for now");
+            const auto radius = std::get<circle_shape>(coll.shape).radius;
 
             if (contact_ball && contact_ball->id == ball.id) {
                 renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
@@ -331,7 +331,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         // Draw the boundary boxes
         for (const auto id : t.border_boxes) {
             const auto& coll = t.sim.get(id);
-            const auto& box = std::get<box_shape>(coll.geometry);
+            const auto& box = std::get<box_shape>(coll.shape);
             renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
         }
 

@@ -1,7 +1,6 @@
 # snooker-game
 Snooker Game
 
-
 ## v0.1 todo
 [] Correct border outline
 [] Power meter for shots

@@ -19,14 +19,38 @@ struct collision_info
 
 auto inv_mass(const collider& c) -> float
 {
-    if (c.mass <= 0) return 0;
-    return 1.0f / c.mass;
+    if (!std::holds_alternative<dynamic_body>(c.body)) return 0;
+    const auto mass = std::get<dynamic_body>(c.body).mass;
+    return 1.0f / mass;
+}
+
+auto safe_inverse(float x) -> float
+{
+    if (x == 0.0f) { return 0.0f; }
+    return 1.0f / x;
+}
+
+auto velocity(const collider& c) -> glm::vec2
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        return std::get<dynamic_body>(c.body).vel;
+    }
+    return {0.0f, 0.0f};
+}
+
+auto apply_impulse(collider& c, glm::vec2 impulse) -> void
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        auto& body = std::get<dynamic_body>(c.body);
+        body.vel += impulse * safe_inverse(body.mass);
+    }
 }
 
 // Checks if two colliders are colliding, and returns the normal of the collision if the yare
 auto collision_test(const collider& a, const collider& b) -> std::optional<collision_info>
 {
-    if (a.mass < 0 && b.mass < 0) return {}; // static bodies, so no collision
+    // only check for collisions between two dynamic bodies
+    if (!std::holds_alternative<dynamic_body>(a.body) && !std::holds_alternative<dynamic_body>(b.body)) return {};
 
     return std::visit(overloaded{
         [&](const circle_shape& A, const circle_shape& B) -> std::optional<collision_info> {
@@ -65,7 +89,7 @@ auto collision_test(const collider& a, const collider& b) -> std::optional<colli
             assert_that(false, "unhandled collision type!");
             return {};
         }
-    }, a.geometry, b.geometry);
+    }, a.shape, b.shape);
 }
 
 auto generate_contacts(const std::vector<collider>& colliders) -> std::vector<contact>
@@ -106,7 +130,7 @@ void solve_contacts(std::vector<collider>& colliders,
         const auto b1 = ci.b;
         const auto normal_i = ci.normal;
 
-        const auto rv = (b1 >= 0 ? colliders[b1].vel : glm::vec2(0)) - colliders[a1].vel;
+        const auto rv = velocity(colliders[b1]) - velocity(colliders[a1]);
         const auto rel_vel = glm::dot(rv, normal_i);
 
         // only apply restitution if moving into contact
@@ -168,8 +192,8 @@ void solve_contacts(std::vector<collider>& colliders,
     for (int i = 0; i < N; ++i) {
         const auto& c = contacts[i];
         const auto impulse = j[i] * c.normal;
-        colliders[c.a].vel -= inv_mass(colliders[c.a]) * impulse;
-        colliders[c.b].vel += inv_mass(colliders[c.b]) * impulse;
+        apply_impulse(colliders[c.a], -impulse);
+        apply_impulse(colliders[c.b], impulse);
     }
 }
 
@@ -196,7 +220,9 @@ void simulation::step(float frame_dt)
     for (int i = 0; i != num_substeps; ++i) {
         // 1. integrate positions
         for (auto& c : colliders) {
-            c.pos += c.vel * dt;
+            if (std::holds_alternative<dynamic_body>(c.body)) {
+                c.pos += std::get<dynamic_body>(c.body).vel * dt;
+            }
         }
     
         // 2. generate contacts and handle attraction
@@ -215,16 +241,18 @@ void simulation::step(float frame_dt)
                         const auto direction = -col->normal;
                         const auto strength = col->penetration * 20.0f;
                         const auto attraction = strength * strength;
-                        cj.vel += direction * attraction * dt;
-                        cj.vel *= (1.0f - 0.2f * strength * dt);
+                        auto& vel = std::get<dynamic_body>(cj.body).vel;
+                        vel += direction * attraction * dt;
+                        vel *= (1.0f - 0.2f * strength * dt);
                     }
                     else if (cj.attractor) {
                         const auto dist = glm::length(ci.pos - cj.pos);
                         const auto direction = col->normal;
                         const auto strength = col->penetration * 20.0f;
                         const auto attraction = strength * strength;
-                        ci.vel += direction * attraction * dt;
-                        ci.vel *= (1.0f - 0.2f * strength * dt);
+                        auto& vel = std::get<dynamic_body>(ci.body).vel;
+                        vel += direction * attraction * dt;
+                        vel *= (1.0f - 0.2f * strength * dt);
                     }
                     else {
                         contacts.push_back({ i, j, col->normal, col->penetration });
@@ -242,9 +270,12 @@ void simulation::step(float frame_dt)
         // 5. time-step–dependent global damping
         const auto damping = std::exp(-1.1f * dt); 
         for (auto& c : colliders) {
-            c.vel *= damping;
-            if (glm::length(c.vel) < 0.01f) {
-                c.vel = glm::vec2{0, 0};
+            if (std::holds_alternative<dynamic_body>(c.body)) {
+                auto& vel = std::get<dynamic_body>(c.body).vel;
+                vel *= damping;
+                if (glm::length(vel) < 0.01f) {
+                    vel = glm::vec2{0, 0};
+                }
             }
         }
     }
