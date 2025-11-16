@@ -121,7 +121,6 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
 }
 
-// TODO: store the box collider IDs on the table so we can use them to render
 auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
@@ -240,7 +239,13 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     t.set_cue_ball({50.0f, t.width / 2.0f});
     add_triangle(t, {0.8f * t.length, t.width / 2.0f});
     add_border(t); // TODO: replace with a better construction
-    t.add_pocket({50.0f, 20.0f}, 5);
+    t.add_pocket({0.0f,            0.0f}, 5);
+    t.add_pocket({t.length / 2.0f, 0.0f}, 5);
+    t.add_pocket({t.length,        0.0f}, 5);
+
+    t.add_pocket({0.0f,            t.width}, 5);
+    t.add_pocket({t.length / 2.0f, t.width}, 5);
+    t.add_pocket({t.length,        t.width}, 5);
     
     double accumulator = 0.0;
     while (window.is_running()) {
