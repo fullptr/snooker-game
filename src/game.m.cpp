@@ -32,6 +32,8 @@ enum class next_state
     exit,
 };
 
+static constexpr auto pocket_radius = 5.0f;
+
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     auto timer = snooker::timer{};
@@ -125,13 +127,14 @@ auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
 
-    const auto b1 = t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width);
-    const auto b2 = t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width);
+    t.border_boxes.push_back(t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width - 4*pocket_radius)); // left cushion
+    t.border_boxes.push_back(t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width - 4*pocket_radius)); // right cushion
 
-    const auto b3 = t.sim.add_box({t.length/2.0f, -border_width/2.0f},        2*border_width + t.length, border_width);
-    const auto b4 = t.sim.add_box({t.length/2.0f, t.width+border_width/2.0f}, 2*border_width + t.length, border_width);
+    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, -border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top left cushion
+    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, -border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top right cushion
 
-    t.border_boxes = {b1, b2, b3, b4};
+    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, t.width+border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom left cushion
+    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom right cushion
 }
 
 struct raycast_info
@@ -182,7 +185,8 @@ struct hit_contact
 
 auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
 {
-    assert_that(!t.object_balls.empty(), "balls should never be empty");
+    if (t.object_balls.empty()) { return {}; }
+    
     assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).geometry), "cue ball must be a circle");
     const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).geometry).radius;
 
@@ -239,13 +243,13 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     t.set_cue_ball({50.0f, t.width / 2.0f});
     add_triangle(t, {0.8f * t.length, t.width / 2.0f});
     add_border(t); // TODO: replace with a better construction
-    t.add_pocket({0.0f,            0.0f}, 5);
-    t.add_pocket({t.length / 2.0f, 0.0f}, 5);
-    t.add_pocket({t.length,        0.0f}, 5);
+    t.add_pocket({0.0f,            0.0f}, pocket_radius);
+    t.add_pocket({t.length / 2.0f, 0.0f}, pocket_radius);
+    t.add_pocket({t.length,        0.0f}, pocket_radius);
 
-    t.add_pocket({0.0f,            t.width}, 5);
-    t.add_pocket({t.length / 2.0f, t.width}, 5);
-    t.add_pocket({t.length,        t.width}, 5);
+    t.add_pocket({0.0f,            t.width}, pocket_radius);
+    t.add_pocket({t.length / 2.0f, t.width}, pocket_radius);
+    t.add_pocket({t.length,        t.width}, pocket_radius);
     
     double accumulator = 0.0;
     while (window.is_running()) {
@@ -280,14 +284,19 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
                 const auto dist = glm::distance(t.sim.get(ball.id).pos, t.sim.get(pocket).pos);
                 if (dist + ball_r < pock_r) {
                     ball.is_pocketed = true;
-                    t.sim.remove(ball.id);
+                    break;
                 }
+            }
+        }
+        for (auto& ball : t.object_balls) {
+            if (ball.is_pocketed) {
+                t.sim.remove(ball.id);
             }
         }
         std::erase_if(t.object_balls, [&](const ball& b) { return b.is_pocketed; }); 
 
         // Draw table
-        const auto delta = 2.5f;
+        const auto delta = 0.0f;
         renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(t.length+2*delta), c.to_screen(t.width+2*delta), board_colour);
 
         // Draw pockets

@@ -21,14 +21,14 @@ texture_dyn::~texture_dyn()
 
 auto texture_dyn::set_data(std::span<const glm::vec4> data) -> void
 {
-    assert_that(data.size() == d_width * d_height);
+    assert_that(data.size() == d_width * d_height, "1) failed to set subdata - invalid width and height");
     bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, d_width, d_height, 0, GL_RGBA, GL_FLOAT, data.data());
 }
 
 auto texture_dyn::set_subdata(std::span<const glm::vec4> data, glm::ivec2 top_left, i32 width, i32 height) -> void
 {
-    assert_that(data.size() == width * height);
+    assert_that(data.size() == width * height, "2) failed to set subdata - invalid width and height");
     glTextureSubImage2D(d_texture, 0, top_left.x, top_left.y, width, height, GL_RGBA, GL_FLOAT, data.data());
 }
 

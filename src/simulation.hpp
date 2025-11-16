@@ -57,13 +57,13 @@ public:
 
     auto get(std::size_t id) -> collider&
     {
-        assert_that(d_colliders.is_valid(id));
+        assert_that(d_colliders.is_valid(id), std::format("invalid id {}\n", id));
         return d_colliders.get(id);
     }
 
     auto get(std::size_t id) const -> const collider&
     {
-        assert_that(d_colliders.is_valid(id));
+        assert_that(d_colliders.is_valid(id), std::format("invalid id {}\n", id));
         return d_colliders.get(id);
     }
 
@@ -76,7 +76,7 @@ public:
 
     auto remove(std::size_t id) -> void
     {
-        assert_that(is_valid(id));
+        assert_that(d_colliders.is_valid(id), std::format("invalid id {}\n", id));
         d_colliders.erase(id);
     }
 };
