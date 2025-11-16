@@ -89,28 +89,23 @@ auto collision_circle_line(glm::vec2 pos_a, glm::vec2 pos_b, circle_shape shape_
     const auto circle_radius = shape_a.radius;
     const auto line_start = pos_b + shape_b.start;
     const auto line_end = pos_b + shape_b.end;
-
-    // degenerate line
-    if (line_start == line_end) {
-        const auto diff = line_start - circle_pos;
-        const auto dist = glm::length(diff);
-        if (dist >= circle_radius) return {};
-        
-        const auto normal = (dist > 0.0f) ? diff / dist : glm::vec2(1, 0); // arbitrary normal if center exactly on line
-        return collision_info{normal, circle_radius - dist};
-    }
     
-    // project circle center onto line segment
-    const auto line_vec = line_end - line_start;
-    const auto line_len_sq = glm::dot(line_vec, line_vec);
-    const auto t = glm::clamp(glm::dot(circle_pos - line_start, line_vec) / line_len_sq, 0.0f, 1.0f);
+    auto diff = glm::vec2{0.0f, 0.0f};
+    if (line_start == line_end) { // degenerate line
+        diff = line_start - circle_pos;
+    } else {
+        // project circle center onto line segment
+        const auto line_vec = line_end - line_start;
+        const auto line_len_sq = glm::dot(line_vec, line_vec);
+        const auto t = glm::clamp(glm::dot(circle_pos - line_start, line_vec) / line_len_sq, 0.0f, 1.0f);
+    
+        const auto closest = line_start + t * line_vec;
+        diff = closest - circle_pos;
+    }
 
-    const auto closest = line_start + t * line_vec;
-    const auto diff = closest - circle_pos;
     const auto dist = glm::length(diff);
-    if (dist >= circle_radius) return {}; // no collision
-       
-    const auto normal = (dist > 0.0f) ? diff / dist : glm::vec2{1, 0}; // arbitrary normal if center exactly on line
+    if (dist >= circle_radius) return {};
+    const auto normal = (dist > 0.0f) ? diff / dist : glm::vec2(1, 0); // arbitrary normal if center exactly on line
     return collision_info{normal, circle_radius - dist};
 }
 

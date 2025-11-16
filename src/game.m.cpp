@@ -144,20 +144,28 @@ struct raycast_info
     glm::vec2 dir;
 };
 
-auto raycast(glm::vec2 start, glm::vec2 end, const collider& cue_ball, const collider& other) -> std::optional<raycast_info>
+struct ray
 {
-    assert_that(std::holds_alternative<circle_shape>(cue_ball.shape), "cue ball must be a circle");
+    glm::vec2 start;
+    glm::vec2 end;
+};
 
+auto distance_from_line(const ray& line, glm::vec2 point) -> float
+{
+    return 0.0f;
+}
+
+auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other) -> std::optional<raycast_info>
+{
     return std::visit(overloaded{
         [&](const circle_shape& shape) -> std::optional<raycast_info> {
-            const auto cue_ball_radius = std::get<circle_shape>(cue_ball.shape).radius;
             const auto other_radius    = std::get<circle_shape>(other.shape).radius;
         
             const auto dir = glm::normalize(end - start);
             const auto v = other.pos - start;
             const auto cross = v.x * dir.y - v.y * dir.x;
             const auto distance_from = glm::abs(cross);
-            if (distance_from > (cue_ball_radius + other_radius)) {
+            if (distance_from > (radius + other_radius)) {
                 return {};
             }
         
@@ -194,7 +202,7 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
     auto distance = std::numeric_limits<std::size_t>::max();
 
     for (const auto& ball : t.object_balls) {
-        const auto ray = raycast(start, end, t.sim.get(t.cue_ball.id), t.sim.get(ball.id));
+        const auto ray = raycast(start, end, cue_ball_radius, t.sim.get(ball.id));
         if (ray) {
             assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).shape), "obj ball must be a circle");
             const auto obj_ball_radius = std::get<circle_shape>(t.sim.get(ball.id).shape).radius;
