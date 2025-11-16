@@ -36,7 +36,7 @@ public:
     }
     auto erase(std::size_t id) -> void
     {
-        assert_that(is_valid(id));
+        assert_that(is_valid(id), std::format("invalid id {}\n", id));
         const auto index = d_id_to_index[id];
 
         // swap the id to delete to the end
@@ -45,6 +45,7 @@ public:
 
         // update the map for the element swapped in
         d_id_to_index[d_data_id[index]] = index;
+        d_id_to_index.erase(id);
 
         // remove the element we want to remove
         d_data.pop_back();
@@ -56,12 +57,12 @@ public:
     }
     auto get(std::size_t id) -> T&
     {
-        assert_that(is_valid(id));
+        assert_that(is_valid(id), std::format("invalid id {}\n", id));
         return d_data[d_id_to_index[id]];
     }
     auto get(std::size_t id) const -> const T&
     {
-        assert_that(is_valid(id));
+        assert_that(is_valid(id), std::format("invalid id {}\n", id));
         return d_data[d_id_to_index.at(id)];
     }
 };

@@ -32,6 +32,8 @@ enum class next_state
     exit,
 };
 
+static constexpr auto pocket_radius = 5.0f;
+
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     auto timer = snooker::timer{};
@@ -121,18 +123,18 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
 }
 
-// TODO: store the box collider IDs on the table so we can use them to render
 auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
 
-    const auto b1 = t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width);
-    const auto b2 = t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width);
+    t.border_boxes.push_back(t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width - 4*pocket_radius)); // left cushion
+    t.border_boxes.push_back(t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width - 4*pocket_radius)); // right cushion
 
-    const auto b3 = t.sim.add_box({t.length/2.0f, -border_width/2.0f},        2*border_width + t.length, border_width);
-    const auto b4 = t.sim.add_box({t.length/2.0f, t.width+border_width/2.0f}, 2*border_width + t.length, border_width);
+    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, -border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top left cushion
+    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, -border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top right cushion
 
-    t.border_boxes = {b1, b2, b3, b4};
+    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, t.width+border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom left cushion
+    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom right cushion
 }
 
 struct raycast_info
@@ -183,7 +185,8 @@ struct hit_contact
 
 auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
 {
-    assert_that(!t.object_balls.empty(), "balls should never be empty");
+    if (t.object_balls.empty()) { return {}; }
+    
     assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).geometry), "cue ball must be a circle");
     const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).geometry).radius;
 
@@ -236,75 +239,98 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     auto timer    = snooker::timer{};
     auto ui       = snooker::ui_engine{&renderer};
 
-    auto pool_table = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
-    pool_table.set_cue_ball({50.0f, pool_table.width / 2.0f});
-    add_triangle(pool_table, {0.8f * pool_table.length, pool_table.width / 2.0f});
-    add_border(pool_table); // TODO: replace with a better construction
+    auto t = table{182.88f, 91.44f}; // english pool table dimensions in cm (6ft x 3ft)
+    t.set_cue_ball({50.0f, t.width / 2.0f});
+    add_triangle(t, {0.8f * t.length, t.width / 2.0f});
+    add_border(t); // TODO: replace with a better construction
+    t.add_pocket({0.0f,            0.0f}, pocket_radius);
+    t.add_pocket({t.length / 2.0f, 0.0f}, pocket_radius);
+    t.add_pocket({t.length,        0.0f}, pocket_radius);
+
+    t.add_pocket({0.0f,            t.width}, pocket_radius);
+    t.add_pocket({t.length / 2.0f, t.width}, pocket_radius);
+    t.add_pocket({t.length,        t.width}, pocket_radius);
     
     double accumulator = 0.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
         
-        const auto c = converter{window.dimensions(), pool_table.dimensions(), 0.9f};
+        const auto c = converter{window.dimensions(), t.dimensions(), 0.9f};
         
-        const auto& cue_ball_ball = pool_table.cue_ball;
-        auto& cue_ball_coll = pool_table.sim.get(cue_ball_ball.id);
+        auto& cue_ball_coll = t.sim.get(t.cue_ball.id);
         const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
         
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>()) {
-                cue_ball_coll.vel = 200.0f * aim_direction;
+                cue_ball_coll.vel = 400.0f * aim_direction;
             }
         }
 
         accumulator += dt;
         while (accumulator > step) {
-            pool_table.sim.step(step);
+            t.sim.step(step);
             accumulator -= step;
         }
-
-        // Temp code to test deleting balls
-        std::unordered_set<std::size_t> to_delete;
-        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
-            const auto pos = pool_table.sim.get(pool_table.object_balls[i].id).pos;
-            if (pos.x < 20 && pos.y < 20) {
-                to_delete.insert(i);
+        
+        // Handle pocketed balls
+        for (auto& ball : t.object_balls) {
+            for (const auto& pocket : t.pockets) {
+                assert_that(std::holds_alternative<circle_shape>(t.sim.get(pocket).geometry), "pockets must be circles for now");
+                assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).geometry), "balls must be circles for now");
+                const auto ball_r = std::get<circle_shape>(t.sim.get(ball.id).geometry).radius;
+                const auto pock_r = std::get<circle_shape>(t.sim.get(pocket).geometry).radius;
+                const auto dist = glm::distance(t.sim.get(ball.id).pos, t.sim.get(pocket).pos);
+                if (dist + ball_r < pock_r) {
+                    ball.is_pocketed = true;
+                    break;
+                }
             }
         }
+        for (auto& ball : t.object_balls) {
+            if (ball.is_pocketed) {
+                t.sim.remove(ball.id);
+            }
+        }
+        std::erase_if(t.object_balls, [&](const ball& b) { return b.is_pocketed; }); 
 
         // Draw table
-        const auto delta = 2.5f;
-        renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(pool_table.length+2*delta), c.to_screen(pool_table.width+2*delta), board_colour);
+        const auto delta = 0.0f;
+        renderer.push_rect(c.to_screen({-delta, -delta}), c.to_screen(t.length+2*delta), c.to_screen(t.width+2*delta), board_colour);
+
+        // Draw pockets
+        for (const auto& id : t.pockets) {
+            const auto& coll = t.sim.get(id);
+            renderer.push_circle(c.to_screen(coll.pos), from_hex(0x422007), c.to_screen(std::get<circle_shape>(coll.geometry).radius));
+        }
 
         // Draw cue ball
         {
-            const auto& ball = pool_table.cue_ball;
-            const auto& coll = pool_table.sim.get(ball.id);
+            const auto& ball = t.cue_ball;
+            const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.geometry).radius;
             renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
         // Draw object balls
-        const auto contact_ball = find_contact_ball(pool_table, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
-        for (std::size_t i = 0; i != pool_table.object_balls.size(); ++i) {
-            const auto& ball = pool_table.object_balls[i];
-            const auto& coll = pool_table.sim.get(ball.id);
+        const auto contact_ball = find_contact_ball(t, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
+        for (const auto& ball : t.object_balls) {
+            const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.geometry), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.geometry).radius;
 
             if (contact_ball && contact_ball->id == ball.id) {
                 renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
-                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(cue_ball_ball.colour, 0.5f), c.to_screen(radius));
+                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(t.cue_ball.colour, 0.5f), c.to_screen(radius));
             }
             renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
         // Draw the boundary boxes
-        for (const auto id : pool_table.border_boxes) {
-            const auto& coll = pool_table.sim.get(id);
+        for (const auto id : t.border_boxes) {
+            const auto& coll = t.sim.get(id);
             const auto& box = std::get<box_shape>(coll.geometry);
             renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
         }

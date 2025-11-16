@@ -186,21 +186,52 @@ void fix_positions(std::vector<collider>& colliders, const std::vector<contact>&
 
 }
 
-void simulation::step(float dt)
+void simulation::step(float frame_dt)
 {
     auto& colliders = d_colliders.data();
 
-    const auto num_substeps = 6;
-    const auto sub_dt = dt / num_substeps;
+    const auto num_substeps = 20;
+    const auto dt = frame_dt / num_substeps;
 
     for (int i = 0; i != num_substeps; ++i) {
         // 1. integrate positions
         for (auto& c : colliders) {
-            c.pos += c.vel * sub_dt;
+            c.pos += c.vel * dt;
         }
     
-        // 2. generate contacts
-        auto contacts = generate_contacts(colliders);
+        // 2. generate contacts and handle attraction
+        std::vector<contact> contacts;
+
+        for (std::size_t i = 0; i < colliders.size(); ++i) {
+            for (std::size_t j = i + 1; j < colliders.size(); ++j) {
+                auto& ci = colliders[i];
+                auto& cj = colliders[j];
+                if (const auto col = collision_test(ci, cj)) {
+                    if (ci.attractor && cj.attractor) {
+                        // nothing to do, attractors don't affect each other
+                    }
+                    else if (ci.attractor) {
+                        const auto dist = glm::length(ci.pos - cj.pos);
+                        const auto direction = -col->normal;
+                        const auto strength = col->penetration * 20.0f;
+                        const auto attraction = strength * strength;
+                        cj.vel += direction * attraction * dt;
+                        cj.vel *= (1.0f - 0.2f * strength * dt);
+                    }
+                    else if (cj.attractor) {
+                        const auto dist = glm::length(ci.pos - cj.pos);
+                        const auto direction = col->normal;
+                        const auto strength = col->penetration * 20.0f;
+                        const auto attraction = strength * strength;
+                        ci.vel += direction * attraction * dt;
+                        ci.vel *= (1.0f - 0.2f * strength * dt);
+                    }
+                    else {
+                        contacts.push_back({ i, j, col->normal, col->penetration });
+                    }
+                }
+            }
+        }
     
         // 3. solve collisions
         solve_contacts(colliders, contacts);
@@ -209,7 +240,7 @@ void simulation::step(float dt)
         fix_positions(colliders, contacts);
     
         // 5. time-step–dependent global damping
-        const auto damping = std::exp(-1.5f * sub_dt); // 1.5 means ~77% velocity lost per second
+        const auto damping = std::exp(-1.1f * dt); 
         for (auto& c : colliders) {
             c.vel *= damping;
             if (glm::length(c.vel) < 0.01f) {

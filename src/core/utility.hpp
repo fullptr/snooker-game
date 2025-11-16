@@ -40,13 +40,13 @@ static_assert(std::is_same_v<u64, std::size_t>);
 
 inline auto assert_that(
     bool condition,
-    std::string_view message = {},
+    std::string_view message,
     std::source_location loc = std::source_location::current()
 )
     -> void
 {
     if (!condition) {
-        std::print("FAILED ASSERTION: ({}) {}\n", loc.line(), message);
+        std::print("FAILED ASSERTION: ({}:{}) {}\n", loc.file_name(), loc.line(), message);
         std::terminate();
     }
 }

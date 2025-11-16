@@ -30,6 +30,9 @@ struct collider
     glm::vec2 vel;
     shape     geometry;
     float     mass; // non-positive mass == static
+
+    // if true, this pulls colliders towards it
+    bool attractor = false;
 };
 
 class simulation
@@ -37,9 +40,9 @@ class simulation
     id_vector<collider> d_colliders;
 
 public:
-    auto add_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
+    auto add_circle(glm::vec2 pos, float radius, float mass, bool attractor = false) -> std::size_t
     {
-        const auto col = collider{ .pos=pos, .vel=glm::vec2{0, 0}, .geometry=circle_shape{radius}, .mass=mass };
+        const auto col = collider{ .pos=pos, .vel=glm::vec2{0, 0}, .geometry=circle_shape{radius}, .mass=mass, .attractor=attractor };
         const auto id = d_colliders.insert(col);
         return id;
     }
@@ -54,13 +57,13 @@ public:
 
     auto get(std::size_t id) -> collider&
     {
-        assert_that(d_colliders.is_valid(id));
+        assert_that(d_colliders.is_valid(id), std::format("invalid id {}\n", id));
         return d_colliders.get(id);
     }
 
     auto get(std::size_t id) const -> const collider&
     {
-        assert_that(d_colliders.is_valid(id));
+        assert_that(d_colliders.is_valid(id), std::format("invalid id {}\n", id));
         return d_colliders.get(id);
     }
 
@@ -73,7 +76,7 @@ public:
 
     auto remove(std::size_t id) -> void
     {
-        assert_that(is_valid(id));
+        assert_that(d_colliders.is_valid(id), std::format("invalid id {}\n", id));
         d_colliders.erase(id);
     }
 };

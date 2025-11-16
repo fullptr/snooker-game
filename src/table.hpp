@@ -17,6 +17,7 @@ struct ball
 {
     std::size_t id;
     glm::vec4   colour;
+    bool        is_pocketed = false;
 };
 
 // dimensions are an english pool table in cm (6ft x 3ft)
@@ -31,20 +32,26 @@ struct table
     ball                     cue_ball;
     std::vector<ball>        object_balls;
     std::vector<std::size_t> border_boxes;
+    std::vector<std::size_t> pockets;
 
     auto dimensions() -> glm::vec2 { return {length, width}; }
 
     void set_cue_ball(glm::vec2 position)
     {
-        const auto id = sim.add_circle(position, ball_radius, ball_mass);
+        auto id = sim.add_circle(position, ball_radius, ball_mass);
         cue_ball = ball{ .id=id, .colour={1, 1, 1, 1}};
     }
 
     void add_ball(glm::vec2 position, glm::vec4 colour)
     {
-        const auto id = sim.add_circle(position, ball_radius, ball_mass);
-        const auto b = ball{ .id=id, .colour=colour };
-        object_balls.push_back(b);
+        auto id = sim.add_circle(position, ball_radius, ball_mass);
+        object_balls.emplace_back(id, colour);
+    }
+
+    void add_pocket(glm::vec2 position, float radius)
+    {
+        auto id = sim.add_circle(position, radius, -1, true);
+        pockets.push_back(id);
     }
 };
 
