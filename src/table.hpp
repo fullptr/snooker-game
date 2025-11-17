@@ -33,6 +33,7 @@ struct table
     std::vector<ball>        object_balls;
     std::vector<std::size_t> border_boxes;
     std::vector<std::size_t> pockets;
+    std::size_t              test;
 
     auto dimensions() -> glm::vec2 { return {length, width}; }
 

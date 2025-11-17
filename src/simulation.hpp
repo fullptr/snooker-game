@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 
 #include "utility.hpp"
+#include "collision.hpp"
 #include "id_vector.hpp"
 
 namespace snooker {
@@ -58,6 +59,9 @@ class simulation
     id_vector<collider> d_colliders;
 
 public:
+    static constexpr auto time_step = 1.0f / 60.0f;
+    static constexpr auto num_substeps = 20;
+
     auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
     {
         const auto col = collider{ .pos=pos, .body=dynamic_body{ .mass=mass, .vel={0.0f, 0.0f} }, .shape=circle_shape{radius} };
@@ -99,7 +103,7 @@ public:
         return d_colliders.get(id);
     }
 
-    auto step(float dt) -> void;
+    auto step() -> void;
     
     auto is_valid(std::size_t id) const -> bool
     {
