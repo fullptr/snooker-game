@@ -149,7 +149,8 @@ auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other
             return ray_to_circle(r, circ);
         },
         [&](const box_shape& shape) -> std::optional<float> {
-            return {}; // TODO: Implement this
+            const auto b = box{.centre=other.pos, .width=shape.width, .height=shape.height};
+            return ray_to_box(r, b);
         },
         [&](const line_shape& shape) -> std::optional<float> {
             const auto c = capsule{.start=other.pos + shape.start, .end=other.pos+shape.end, .radius=radius};
@@ -201,6 +202,17 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
             if (ball_dist < distance) {
                 distance = ball_dist;
                 ret = hit_contact{ .id=t.test, .cue_ball_pos=new_cue_pos };
+            }
+        }
+    }
+    for (const auto& id : t.border_boxes) {
+        const auto ray = raycast(start, end, cue_ball_radius, t.sim.get(id));
+        if (ray) {
+            const auto new_cue_pos = *ray;
+            const auto ball_dist = glm::length(new_cue_pos - start);
+            if (ball_dist < distance) {
+                distance = ball_dist;
+                ret = hit_contact{ .id=id, .cue_ball_pos=new_cue_pos };
             }
         }
     }

@@ -79,4 +79,36 @@ auto ray_to_capsule(ray r, capsule c) -> std::optional<float>
     return best;
 }
 
+// to handle ray to box, turn the box into the four bounding lines
+auto ray_to_box(ray r, box b) -> std::optional<float>
+{
+    auto best = std::numeric_limits<float>::infinity();
+
+    const auto tl = b.centre + glm::vec2{-b.width, -b.height} / 2.0f;
+    const auto tr = b.centre + glm::vec2{ b.width, -b.height} / 2.0f;
+    const auto bl = b.centre + glm::vec2{-b.width,  b.height} / 2.0f;
+    const auto br = b.centre + glm::vec2{ b.width,  b.height} / 2.0f;
+
+    if (auto t = ray_to_line(r, line{tl, tr})) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_line(r, line{tr, bl})) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_line(r, line{bl, br})) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_line(r, line{br, tl})) {
+        best = std::min(best, *t);
+    }
+
+    if (!std::isfinite(best))
+        return {};
+
+    return best;
+}
+
 }
