@@ -145,16 +145,16 @@ auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other
     const auto contact = std::visit(overloaded{
         // To cast a circle at another circle is the same as casting a point at a circle with the radius sum
         [&](const circle_shape& shape) -> std::optional<float> {
-            const auto circ = circle{.centre=other.pos, .radius=radius + shape.radius};
-            return ray_to_circle(r, circ);
+            const auto c = circle{.centre=other.pos, .radius=shape.radius};
+            return ray_cast(r, inflate(c, radius));
         },
         [&](const box_shape& shape) -> std::optional<float> {
-            const auto b = padded_box{.centre=other.pos, .width=shape.width, .height=shape.height, .radius=radius};
-            return ray_to_padded_box(r, b);
+            const auto b = box{.centre=other.pos, .width=shape.width, .height=shape.height};
+            return ray_cast(r, inflate(b, radius));
         },
         [&](const line_shape& shape) -> std::optional<float> {
-            const auto c = capsule{.start=other.pos + shape.start, .end=other.pos+shape.end, .radius=radius};
-            return ray_to_capsule(r, c);
+            const auto l = line{.start=other.pos + shape.start, .end=other.pos+shape.end};
+            return ray_cast(r, inflate(l, radius));
         },
         [](auto&&) -> std::optional<float> {
             return {};
@@ -175,8 +175,6 @@ struct hit_contact
 
 auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<hit_contact>
 {
-    if (t.object_balls.empty()) { return {}; }
-    
     assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).shape), "cue ball must be a circle");
     const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).shape).radius;
 

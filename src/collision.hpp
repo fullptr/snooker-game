@@ -46,10 +46,16 @@ struct padded_box
     float     radius;
 };
 
-auto ray_to_circle(ray r, circle c) -> std::optional<float>;
-auto ray_to_line(ray r, line l) -> std::optional<float>;
-auto ray_to_capsule(ray r, capsule c) -> std::optional<float>;
-auto ray_to_box(ray r, box b) -> std::optional<float>;
-auto ray_to_padded_box(ray r, padded_box b) -> std::optional<float>;
+auto ray_cast(ray r, circle c) -> std::optional<float>;
+auto ray_cast(ray r, line l) -> std::optional<float>;
+auto ray_cast(ray r, capsule c) -> std::optional<float>;
+auto ray_cast(ray r, box b) -> std::optional<float>;
+auto ray_cast(ray r, padded_box b) -> std::optional<float>;
+
+auto inflate(circle c, float radius) -> circle;
+auto inflate(line l, float radius) -> capsule;
+auto inflate(capsule c, float radius) -> capsule;
+auto inflate(box b, float radius) -> padded_box;
+auto inflate(padded_box b, float radius) -> padded_box;
 
 };
