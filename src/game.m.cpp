@@ -33,7 +33,7 @@ enum class next_state
     exit,
 };
 
-static constexpr auto pocket_radius = 5.0f;
+static constexpr auto pocket_radius = 7.0f;
 
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
@@ -128,19 +128,19 @@ auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
 
-    t.border_boxes.push_back(t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width - 4*pocket_radius)); // left cushion
-    t.border_boxes.push_back(t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width - 4*pocket_radius)); // right cushion
+    t.border_boxes.push_back(t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, t.width - 2*pocket_radius)); // left cushion
+    t.border_boxes.push_back(t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, t.width - 2*pocket_radius)); // right cushion
 
-    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, -border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top left cushion
-    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, -border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top right cushion
+    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, -border_width/2.0f},        t.length/2.0f - 2*pocket_radius, border_width)); // top left cushion
+    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, -border_width/2.0f},   t.length/2.0f - 2*pocket_radius, border_width)); // top right cushion
 
-    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, t.width+border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom left cushion
-    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom right cushion
+    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, t.width+border_width/2.0f},        t.length/2.0f - 2*pocket_radius, border_width)); // bottom left cushion
+    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   t.length/2.0f - 2*pocket_radius, border_width)); // bottom right cushion
 }
 
 auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> std::optional<float>
 {
-    const auto contact = std::visit(overloaded{
+    return std::visit(overloaded{
         // To cast a circle at another circle is the same as casting a point at a circle with the radius sum
         [&](const circle_shape& shape) -> std::optional<float> {
             const auto c = circle{.centre=other.pos, .radius=shape.radius};
@@ -158,8 +158,6 @@ auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> 
             return {};
         }
     }, other.shape);
-
-    return contact;
 }
 
 auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<glm::vec2>
