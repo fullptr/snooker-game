@@ -6,6 +6,7 @@ find_package(glm CONFIG REQUIRED)
 
 add_executable(game
                game.m.cpp
+               collision.cpp
                simulation.cpp)
 
 target_include_directories(game PUBLIC .)

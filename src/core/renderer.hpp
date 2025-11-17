@@ -11,7 +11,7 @@
 
 namespace snooker {
 
-struct line
+struct render_line
 {
     glm::vec2 begin;
     glm::vec2 end;
@@ -22,7 +22,7 @@ struct line
     static void set_buffer_attributes(u32 vbo);
 };
 
-struct circle
+struct render_circle
 {
     glm::vec2 centre;
     float     inner_radius;
@@ -34,7 +34,7 @@ struct circle
     static void set_buffer_attributes(u32 vbo);
 };
 
-struct quad
+struct render_quad
 {
     glm::ivec2 top_left;
     int        width;
@@ -54,9 +54,9 @@ class renderer
     u32 d_vbo;
     u32 d_ebo;
 
-    std::vector<line>   d_lines;
-    std::vector<circle> d_circles;
-    std::vector<quad>   d_quads;
+    std::vector<render_line>   d_lines;
+    std::vector<render_circle> d_circles;
+    std::vector<render_quad>   d_quads;
 
     shader d_line_shader;
     shader d_circle_shader;

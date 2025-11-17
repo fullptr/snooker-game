@@ -3,6 +3,7 @@
 #include "utility.hpp"
 #include "renderer.hpp"
 #include "ui.hpp"
+#include "collision.hpp"
 
 #include "table.hpp"
 #include "simulation.hpp"
@@ -137,35 +138,18 @@ auto add_border(table& t) -> void
     t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom right cushion
 }
 
-struct raycast_info
-{
-    float     distance_from_line;
-    float     distance_along_line;
-    glm::vec2 dir;
-};
-
-struct ray
-{
-    glm::vec2 start;
-    glm::vec2 end;
-};
-
-auto distance_from_line(const ray& line, glm::vec2 point) -> float
-{
-    return 0.0f;
-}
-
-auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other) -> std::optional<raycast_info>
+auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other) -> std::optional<glm::vec2>
 {
     return std::visit(overloaded{
-        [&](const circle_shape& shape) -> std::optional<raycast_info> {
+        [&](const circle_shape& shape) -> std::optional<glm::vec2> {
             const auto other_radius    = std::get<circle_shape>(other.shape).radius;
+            const auto rad_sum = radius + other_radius;
         
             const auto dir = glm::normalize(end - start);
             const auto v = other.pos - start;
             const auto cross = v.x * dir.y - v.y * dir.x;
             const auto distance_from = glm::abs(cross);
-            if (distance_from > (radius + other_radius)) {
+            if (distance_from > rad_sum) {
                 return {};
             }
         
@@ -173,13 +157,21 @@ auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other
             if (glm::dot(dir, other.pos - start) < 0) { // only raycast forward
                 return {};
             }
-        
-            return raycast_info{ distance_from, distance_along, dir };
+
+            return start + dir * (distance_along - glm::sqrt(std::powf(rad_sum, 2) - std::powf(distance_from, 2)));
         },
-        [&](const box_shape& shape) -> std::optional<raycast_info> {
+        [&](const box_shape& shape) -> std::optional<glm::vec2> {
             return {}; // TODO: Implement this
         },
-        [](auto&&) -> std::optional<raycast_info> {
+        [&](const line_shape& shape) -> std::optional<glm::vec2> {
+            const auto r = ray{.start=start, .dir=end-start};
+            const auto c = capsule{.start=other.pos + shape.start, .end=other.pos+shape.end, .radius=radius};
+            if (auto t = ray_to_capsule(r, c)) {
+                return r.start + *t * r.dir;
+            }
+            return {};
+        },
+        [](auto&&) -> std::optional<glm::vec2> {
             return {};
         }
     }, other.shape);
@@ -204,15 +196,22 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
     for (const auto& ball : t.object_balls) {
         const auto ray = raycast(start, end, cue_ball_radius, t.sim.get(ball.id));
         if (ray) {
-            assert_that(std::holds_alternative<circle_shape>(t.sim.get(ball.id).shape), "obj ball must be a circle");
-            const auto obj_ball_radius = std::get<circle_shape>(t.sim.get(ball.id).shape).radius;
-
-            const auto rad_sum = cue_ball_radius + obj_ball_radius;
-            const auto new_cue_pos = start + ray->dir * (ray->distance_along_line - glm::sqrt(std::powf(rad_sum, 2) - std::powf(ray->distance_from_line, 2)));
+            const auto new_cue_pos = *ray;
             const auto ball_dist = glm::length(new_cue_pos - start);
             if (ball_dist < distance) {
                 distance = ball_dist;
                 ret = hit_contact{ .id=ball.id, .cue_ball_pos=new_cue_pos };
+            }
+        }
+    }
+    {
+        const auto ray = raycast(start, end, cue_ball_radius, t.sim.get(t.test));
+        if (ray) {
+            const auto new_cue_pos = *ray;
+            const auto ball_dist = glm::length(new_cue_pos - start);
+            if (ball_dist < distance) {
+                distance = ball_dist;
+                ret = hit_contact{ .id=t.test, .cue_ball_pos=new_cue_pos };
             }
         }
     }
@@ -262,7 +261,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     // Line test
     const auto start = glm::vec2{20, 20};
     const auto end = glm::vec2{150, 30};
-    t.sim.add_static_line(start, end);
+    t.test = t.sim.add_static_line(start, end);
     
     double accumulator = 0.0;
     while (window.is_running()) {
@@ -282,8 +281,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         accumulator += dt;
-        while (accumulator > step) {
-            t.sim.step(step);
+        while (accumulator > simulation::time_step) {
+            t.sim.step();
             accumulator -= step;
         }
         
@@ -329,15 +328,21 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         // Draw object balls
         const auto contact_ball = find_contact_ball(t, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
+        if (contact_ball) {
+            const auto& ball = t.cue_ball;
+            const auto& coll = t.sim.get(ball.id);
+            assert_that(std::holds_alternative<circle_shape>(coll.shape), "only supporting balls for now");
+            const auto radius = std::get<circle_shape>(coll.shape).radius;
+            
+            renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(t.cue_ball.colour, 0.5f), 2.0f);
+            renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(t.cue_ball.colour, 0.5f), c.to_screen(radius));
+        }
+
         for (const auto& ball : t.object_balls) {
             const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.shape), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.shape).radius;
 
-            if (contact_ball && contact_ball->id == ball.id) {
-                renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(contact_ball->cue_ball_pos), {1, 1, 1, 0.5f}, 2.0f);
-                renderer.push_circle(c.to_screen(contact_ball->cue_ball_pos), adjust_alpha(t.cue_ball.colour, 0.5f), c.to_screen(radius));
-            }
             renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 

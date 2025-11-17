@@ -356,52 +356,52 @@ auto load_pixel_font_atlas() -> font_atlas
 
 }
 
-void line::set_buffer_attributes(std::uint32_t vbo)
+void render_line::set_buffer_attributes(std::uint32_t vbo)
 {
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     for (int i = 1; i != 6; ++i) {
         glEnableVertexAttribArray(i);
         glVertexAttribDivisor(i, 1);
     }
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(line), (void*)offsetof(line, begin));
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(line), (void*)offsetof(line, end));
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(line), (void*)offsetof(line, begin_colour));
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(line), (void*)offsetof(line, end_colour));
-    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, sizeof(line), (void*)offsetof(line, thickness));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render_line), (void*)offsetof(render_line, begin));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(render_line), (void*)offsetof(render_line, end));
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(render_line), (void*)offsetof(render_line, begin_colour));
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(render_line), (void*)offsetof(render_line, end_colour));
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, sizeof(render_line), (void*)offsetof(render_line, thickness));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void circle::set_buffer_attributes(std::uint32_t vbo)
+void render_circle::set_buffer_attributes(std::uint32_t vbo)
 {
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     for (int i = 1; i != 7; ++i) {
         glEnableVertexAttribArray(i);
         glVertexAttribDivisor(i, 1);
     }
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(circle), (void*)offsetof(circle, centre));
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(circle), (void*)offsetof(circle, inner_radius));
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(circle), (void*)offsetof(circle, outer_radius));
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(circle), (void*)offsetof(circle, begin_colour));
-    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(circle), (void*)offsetof(circle, end_colour));
-    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, sizeof(circle), (void*)offsetof(circle, angle));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render_circle), (void*)offsetof(render_circle, centre));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(render_circle), (void*)offsetof(render_circle, inner_radius));
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(render_circle), (void*)offsetof(render_circle, outer_radius));
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(render_circle), (void*)offsetof(render_circle, begin_colour));
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(render_circle), (void*)offsetof(render_circle, end_colour));
+    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, sizeof(render_circle), (void*)offsetof(render_circle, angle));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void quad::set_buffer_attributes(std::uint32_t vbo)
+void render_quad::set_buffer_attributes(std::uint32_t vbo)
 {
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     for (int i = 1; i != 9; ++i) {
         glEnableVertexAttribArray(i);
         glVertexAttribDivisor(i, 1);
     }
-    glVertexAttribIPointer(1, 2, GL_INT, sizeof(quad), (void*)offsetof(quad, top_left));
-    glVertexAttribIPointer(2, 1, GL_INT, sizeof(quad), (void*)offsetof(quad, width));
-    glVertexAttribIPointer(3, 1, GL_INT, sizeof(quad), (void*)offsetof(quad, height));
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(quad), (void*)offsetof(quad, angle));
-    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(quad), (void*)offsetof(quad, colour));
-    glVertexAttribIPointer(6, 1, GL_INT, sizeof(quad), (void*)offsetof(quad, use_texture));
-    glVertexAttribIPointer(7, 2, GL_INT, sizeof(quad), (void*)offsetof(quad, uv_pos));
-    glVertexAttribIPointer(8, 2, GL_INT, sizeof(quad), (void*)offsetof(quad, uv_size));
+    glVertexAttribIPointer(1, 2, GL_INT, sizeof(render_quad), (void*)offsetof(render_quad, top_left));
+    glVertexAttribIPointer(2, 1, GL_INT, sizeof(render_quad), (void*)offsetof(render_quad, width));
+    glVertexAttribIPointer(3, 1, GL_INT, sizeof(render_quad), (void*)offsetof(render_quad, height));
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(render_quad), (void*)offsetof(render_quad, angle));
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(render_quad), (void*)offsetof(render_quad, colour));
+    glVertexAttribIPointer(6, 1, GL_INT, sizeof(render_quad), (void*)offsetof(render_quad, use_texture));
+    glVertexAttribIPointer(7, 2, GL_INT, sizeof(render_quad), (void*)offsetof(render_quad, uv_pos));
+    glVertexAttribIPointer(8, 2, GL_INT, sizeof(render_quad), (void*)offsetof(render_quad, uv_size));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -456,7 +456,7 @@ void renderer::draw(i32 screen_width, i32 screen_height)
         
         d_quad_shader.bind();
         d_quad_shader.load_mat4("u_proj_matrix", projection);
-        d_instances.bind<quad>(d_quads);
+        d_instances.bind<render_quad>(d_quads);
         glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, (int)d_quads.size());
     
         glDisable(GL_BLEND);
@@ -480,11 +480,11 @@ void renderer::draw(i32 screen_width, i32 screen_height)
     const auto projection = glm::ortho(0.0f, dimensions.x, dimensions.y, 0.0f);
 
     d_line_shader.bind();
-    d_instances.bind<line>(d_lines);
+    d_instances.bind<render_line>(d_lines);
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, (int)d_lines.size());
 
     d_circle_shader.bind();
-    d_instances.bind<circle>(d_circles);
+    d_instances.bind<render_circle>(d_circles);
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, (int)d_circles.size());
 
     glDisable(GL_BLEND);
@@ -527,7 +527,7 @@ void renderer::push_text(std::string_view message, glm::ivec2 pos, i32 size, glm
     for (char c : message) {
         const auto ch = d_atlas.get_character(c);
 
-        d_quads.push_back(quad{
+        d_quads.push_back(render_quad{
             pos + (size * ch.bearing),
             size * ch.size.x,
             size * ch.size.y,

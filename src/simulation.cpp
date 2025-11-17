@@ -289,12 +289,11 @@ void fix_positions(std::vector<collider>& colliders, const std::vector<contact>&
 
 }
 
-void simulation::step(float frame_dt)
+void simulation::step()
 {
     auto& colliders = d_colliders.data();
 
-    const auto num_substeps = 20;
-    const auto dt = frame_dt / num_substeps;
+    const auto dt = time_step / num_substeps;
 
     for (int i = 0; i != num_substeps; ++i) {
         // 1. integrate positions
