@@ -111,4 +111,51 @@ auto ray_to_box(ray r, box b) -> std::optional<float>
     return best;
 }
 
+auto ray_to_padded_box(ray r, padded_box b) -> std::optional<float>
+{
+    auto best = std::numeric_limits<float>::infinity();
+
+    const auto tl = b.centre + glm::vec2{-b.width, -b.height} / 2.0f;
+    const auto tr = b.centre + glm::vec2{ b.width, -b.height} / 2.0f;
+    const auto bl = b.centre + glm::vec2{-b.width,  b.height} / 2.0f;
+    const auto br = b.centre + glm::vec2{ b.width,  b.height} / 2.0f;
+
+    if (auto t = ray_to_line(r, line{ .start = tl + glm::vec2{0, -b.radius}, .end=tr + glm::vec2{0, -b.radius} })) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_line(r, line{ .start = bl + glm::vec2{0, b.radius}, .end=br + glm::vec2{0, b.radius} })) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_line(r, line{ .start = tl + glm::vec2{-b.radius, 0}, .end=bl + glm::vec2{-b.radius, 0} })) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_line(r, line{ .start = tr + glm::vec2{b.radius, 0}, .end=br + glm::vec2{b.radius, 0} })) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_circle(r, circle{.centre=tl, .radius=b.radius})) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_circle(r, circle{.centre=tr, .radius=b.radius})) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_circle(r, circle{.centre=bl, .radius=b.radius})) {
+        best = std::min(best, *t);
+    }
+
+    if (auto t = ray_to_circle(r, circle{.centre=br, .radius=b.radius})) {
+        best = std::min(best, *t);
+    }
+
+    if (!std::isfinite(best))
+        return {};
+
+    return best;
+}
+
 }

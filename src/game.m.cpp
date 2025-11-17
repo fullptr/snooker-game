@@ -149,8 +149,8 @@ auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other
             return ray_to_circle(r, circ);
         },
         [&](const box_shape& shape) -> std::optional<float> {
-            const auto b = box{.centre=other.pos, .width=shape.width, .height=shape.height};
-            return ray_to_box(r, b);
+            const auto b = padded_box{.centre=other.pos, .width=shape.width, .height=shape.height, .radius=radius};
+            return ray_to_padded_box(r, b);
         },
         [&](const line_shape& shape) -> std::optional<float> {
             const auto c = capsule{.start=other.pos + shape.start, .end=other.pos+shape.end, .radius=radius};
