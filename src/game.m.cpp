@@ -138,7 +138,7 @@ auto add_border(table& t) -> void
     t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom right cushion
 }
 
-auto raycast(ray r, float radius, const collider& other) -> std::optional<float>
+auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> std::optional<float>
 {
     const auto contact = std::visit(overloaded{
         // To cast a circle at another circle is the same as casting a point at a circle with the radius sum
@@ -172,15 +172,15 @@ auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 end) -> std::opti
     const auto r = ray{.start=start, .dir=end-start};
 
     for (const auto& ball : t.object_balls) {
-        if (const auto R = raycast(r, cue_ball_radius, t.sim.get(ball.id))) {
+        if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(ball.id))) {
             best = std::min(best, *R);
         }
     }
-    if (const auto R = raycast(r, cue_ball_radius, t.sim.get(t.test))) {
+    if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(t.test))) {
         best = std::min(best, *R);
     }
     for (const auto& id : t.border_boxes) {
-        if (const auto R = raycast(r, cue_ball_radius, t.sim.get(id))) {
+        if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(id))) {
             best = std::min(best, *R);
         }
     }
