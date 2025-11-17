@@ -140,31 +140,23 @@ auto add_border(table& t) -> void
 
 auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other) -> std::optional<glm::vec2>
 {
+    const auto r = ray{.start=start, .dir=end-start};
+
     return std::visit(overloaded{
         [&](const circle_shape& shape) -> std::optional<glm::vec2> {
             const auto other_radius    = std::get<circle_shape>(other.shape).radius;
             const auto rad_sum = radius + other_radius;
-        
-            const auto dir = glm::normalize(end - start);
-            const auto v = other.pos - start;
-            const auto cross = v.x * dir.y - v.y * dir.x;
-            const auto distance_from = glm::abs(cross);
-            if (distance_from > rad_sum) {
-                return {};
-            }
-        
-            const auto distance_along = glm::sqrt(glm::length2(v) - distance_from * distance_from);
-            if (glm::dot(dir, other.pos - start) < 0) { // only raycast forward
-                return {};
-            }
 
-            return start + dir * (distance_along - glm::sqrt(std::powf(rad_sum, 2) - std::powf(distance_from, 2)));
+            const auto circ = circle{.centre=other.pos, .radius=rad_sum};
+            if (auto t = ray_to_circle(r, circ)) {
+                return r.start + *t * r.dir;
+            }
+            return {};
         },
         [&](const box_shape& shape) -> std::optional<glm::vec2> {
             return {}; // TODO: Implement this
         },
         [&](const line_shape& shape) -> std::optional<glm::vec2> {
-            const auto r = ray{.start=start, .dir=end-start};
             const auto c = capsule{.start=other.pos + shape.start, .end=other.pos+shape.end, .radius=radius};
             if (auto t = ray_to_capsule(r, c)) {
                 return r.start + *t * r.dir;
