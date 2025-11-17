@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 
 #include "utility.hpp"
+#include "collision.hpp"
 #include "id_vector.hpp"
 
 namespace snooker {
