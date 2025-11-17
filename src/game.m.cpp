@@ -138,10 +138,8 @@ auto add_border(table& t) -> void
     t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom right cushion
 }
 
-auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other) -> std::optional<glm::vec2>
+auto raycast(ray r, float radius, const collider& other) -> std::optional<glm::vec2>
 {
-    const auto r = ray{.start=start, .dir=end-start};
-
     const auto contact = std::visit(overloaded{
         // To cast a circle at another circle is the same as casting a point at a circle with the radius sum
         [&](const circle_shape& shape) -> std::optional<float> {
@@ -181,8 +179,10 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
     auto ret = std::optional<hit_contact>{};
     auto distance = std::numeric_limits<std::size_t>::max();
 
+    const auto r = ray{.start=start, .dir=end-start};
+
     for (const auto& ball : t.object_balls) {
-        const auto ray = raycast(start, end, cue_ball_radius, t.sim.get(ball.id));
+        const auto ray = raycast(r, cue_ball_radius, t.sim.get(ball.id));
         if (ray) {
             const auto new_cue_pos = *ray;
             const auto ball_dist = glm::length(new_cue_pos - start);
@@ -193,7 +193,7 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
         }
     }
     {
-        const auto ray = raycast(start, end, cue_ball_radius, t.sim.get(t.test));
+        const auto ray = raycast(r, cue_ball_radius, t.sim.get(t.test));
         if (ray) {
             const auto new_cue_pos = *ray;
             const auto ball_dist = glm::length(new_cue_pos - start);
@@ -204,7 +204,7 @@ auto find_contact_ball(const table& t, glm::vec2 start, glm::vec2 end) -> std::o
         }
     }
     for (const auto& id : t.border_boxes) {
-        const auto ray = raycast(start, end, cue_ball_radius, t.sim.get(id));
+        const auto ray = raycast(r, cue_ball_radius, t.sim.get(id));
         if (ray) {
             const auto new_cue_pos = *ray;
             const auto ball_dist = glm::length(new_cue_pos - start);
