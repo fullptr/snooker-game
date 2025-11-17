@@ -142,31 +142,28 @@ auto raycast(glm::vec2 start, glm::vec2 end, float radius, const collider& other
 {
     const auto r = ray{.start=start, .dir=end-start};
 
-    return std::visit(overloaded{
-        [&](const circle_shape& shape) -> std::optional<glm::vec2> {
-            const auto other_radius    = std::get<circle_shape>(other.shape).radius;
-            const auto rad_sum = radius + other_radius;
-
-            const auto circ = circle{.centre=other.pos, .radius=rad_sum};
-            if (auto t = ray_to_circle(r, circ)) {
-                return r.start + *t * r.dir;
-            }
-            return {};
+    const auto contact = std::visit(overloaded{
+        // To cast a circle at another circle is the same as casting a point at a circle with the radius sum
+        [&](const circle_shape& shape) -> std::optional<float> {
+            const auto circ = circle{.centre=other.pos, .radius=radius + shape.radius};
+            return ray_to_circle(r, circ);
         },
-        [&](const box_shape& shape) -> std::optional<glm::vec2> {
+        [&](const box_shape& shape) -> std::optional<float> {
             return {}; // TODO: Implement this
         },
-        [&](const line_shape& shape) -> std::optional<glm::vec2> {
+        [&](const line_shape& shape) -> std::optional<float> {
             const auto c = capsule{.start=other.pos + shape.start, .end=other.pos+shape.end, .radius=radius};
-            if (auto t = ray_to_capsule(r, c)) {
-                return r.start + *t * r.dir;
-            }
-            return {};
+            return ray_to_capsule(r, c);
         },
-        [](auto&&) -> std::optional<glm::vec2> {
+        [](auto&&) -> std::optional<float> {
             return {};
         }
     }, other.shape);
+
+    if (contact) {
+        return r.start + *contact * r.dir;
+    }
+    return {};
 }
 
 struct hit_contact
