@@ -124,18 +124,45 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
 }
 
+auto add_chain(table& t, const std::vector<glm::vec2>& points)
+{
+    assert_that(points.size() >= 2, "chain requires 2 points");
+    for (std::size_t i = 0; i != points.size() - 1; ++i) {
+        t.border_boxes.push_back(t.sim.add_static_line(points[i], points[i+1]));
+    }
+}
+
 auto add_border(table& t) -> void
 {
     static constexpr auto border_width = 5.0f;
 
-    t.border_boxes.push_back(t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, t.width - 2*pocket_radius)); // left cushion
-    t.border_boxes.push_back(t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, t.width - 2*pocket_radius)); // right cushion
-
-    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, -border_width/2.0f},        t.length/2.0f - 2*pocket_radius, border_width)); // top left cushion
-    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, -border_width/2.0f},   t.length/2.0f - 2*pocket_radius, border_width)); // top right cushion
-
-    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, t.width+border_width/2.0f},        t.length/2.0f - 2*pocket_radius, border_width)); // bottom left cushion
-    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   t.length/2.0f - 2*pocket_radius, border_width)); // bottom right cushion
+    add_chain(t, std::vector<glm::vec2>{
+        glm::vec2{0.5f * pocket_radius, 1.5f * pocket_radius},
+        glm::vec2{-pocket_radius, 0},
+        glm::vec2{0, -pocket_radius},
+        glm::vec2{1.5f * pocket_radius, 0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f - pocket_radius, 0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f - pocket_radius, -0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f + pocket_radius, -0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f + pocket_radius, 0.5f * pocket_radius},
+        glm::vec2{t.length - 1.5f * pocket_radius, 0.5f * pocket_radius},
+        glm::vec2{t.length, -pocket_radius},
+        glm::vec2{t.length + pocket_radius, 0},
+        glm::vec2{t.length - 0.5f * pocket_radius, 1.5f * pocket_radius},
+        glm::vec2{t.length - 0.5f * pocket_radius, t.width - 1.5f * pocket_radius},
+        glm::vec2{t.length + pocket_radius, t.width},
+        glm::vec2{t.length, t.width + pocket_radius},
+        glm::vec2{t.length - 1.5f * pocket_radius, t.width - 0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f + pocket_radius, t.width - 0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f + pocket_radius, t.width + 0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f - pocket_radius, t.width + 0.5f * pocket_radius},
+        glm::vec2{t.length / 2.0f - pocket_radius, t.width - 0.5f * pocket_radius},
+        glm::vec2{1.5f * pocket_radius, t.width - 0.5f * pocket_radius},
+        glm::vec2{0, t.width + pocket_radius},
+        glm::vec2{-pocket_radius, t.width},
+        glm::vec2{0.5f * pocket_radius, t.width - 1.5f * pocket_radius},
+        glm::vec2{0.5f * pocket_radius, 1.5f * pocket_radius}
+    });
 }
 
 auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> std::optional<float>
@@ -173,9 +200,6 @@ auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 end) -> std::opti
         if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(ball.id))) {
             best = std::min(best, *R);
         }
-    }
-    if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(t.test))) {
-        best = std::min(best, *R);
     }
     for (const auto& id : t.border_boxes) {
         if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(id))) {
@@ -228,18 +252,13 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     t.add_pocket({0.0f,            t.width}, pocket_radius);
     t.add_pocket({t.length / 2.0f, t.width}, pocket_radius);
     t.add_pocket({t.length,        t.width}, pocket_radius);
-
-    // Line test
-    const auto start = glm::vec2{20, 20};
-    const auto end = glm::vec2{150, 30};
-    t.test = t.sim.add_static_line(start, end);
     
     double accumulator = 0.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
         
-        const auto c = converter{window.dimensions(), t.dimensions(), 0.9f};
+        const auto c = converter{window.dimensions(), t.dimensions(), 0.8f};
         
         auto& cue_ball_coll = t.sim.get(t.cue_ball.id);
         const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
@@ -288,6 +307,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             renderer.push_circle(c.to_screen(coll.pos), from_hex(0x422007), c.to_screen(std::get<circle_shape>(coll.shape).radius));
         }
 
+        renderer.draw(window.width(), window.height());
+
         // Draw cue ball
         {
             const auto& ball = t.cue_ball;
@@ -320,12 +341,16 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         // Draw the boundary boxes
         for (const auto id : t.border_boxes) {
             const auto& coll = t.sim.get(id);
-            const auto& box = std::get<box_shape>(coll.shape);
-            renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
+            std::visit(overloaded{
+                [&](const box_shape& b) {
+                    renderer.push_quad(c.to_screen(coll.pos), c.to_screen(b.width), c.to_screen(b.height), 0, from_hex(0x73380b));
+                },
+                [&](const line_shape& l) {
+                    renderer.push_line(c.to_screen(coll.pos + l.start), c.to_screen(coll.pos + l.end), from_hex(0x73380b), 2.0f);
+                },
+                [&](auto&&) {}
+            }, coll.shape);
         }
-
-        // Draw TEMP line code
-        renderer.push_line(c.to_screen(start), c.to_screen(end), from_hex(0x73380b), 2.0f);
 
         // Draw cue
         renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
