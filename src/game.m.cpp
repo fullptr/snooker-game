@@ -33,7 +33,15 @@ enum class next_state
     exit,
 };
 
-static constexpr auto pocket_radius = 5.0f;
+struct table_dimensions
+{
+    float border_width;
+    float centre_pocket_radius;
+    float corner_pocket_radius;
+    
+    float centre_pocket_offset;
+    float centre_pocket_back_pinch;
+};
 
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
@@ -124,23 +132,75 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
 }
 
+auto add_chain(table& t, const std::vector<glm::vec2>& points)
+{
+    assert_that(points.size() >= 2, "chain requires 2 points");
+    for (std::size_t i = 0; i != points.size() - 1; ++i) {
+        t.border_boxes.push_back(t.sim.add_static_line(points[i], points[i+1]));
+    }
+    t.border_boxes.push_back(t.sim.add_static_line(points.back(), points.front()));
+}
+
 auto add_border(table& t) -> void
 {
-    static constexpr auto border_width = 5.0f;
+    static constexpr auto cfg = table_dimensions{
+        .border_width = 4.0f,
+        .centre_pocket_radius = 6.0f,
+        .corner_pocket_radius = 7.0f,
+        .centre_pocket_offset = 3.0f,
+        .centre_pocket_back_pinch = 2.0f
+    };
 
-    t.border_boxes.push_back(t.sim.add_box({-border_width/2.0f, t.width/2.0f},         border_width, 2*border_width + t.width - 4*pocket_radius)); // left cushion
-    t.border_boxes.push_back(t.sim.add_box({t.length+border_width/2.0f, t.width/2.0f}, border_width, 2*border_width + t.width - 4*pocket_radius)); // right cushion
+    t.add_pocket({0.0f,            0.0f}, cfg.corner_pocket_radius);
+    t.add_pocket({t.length / 2.0f, -cfg.centre_pocket_offset}, cfg.centre_pocket_radius);
+    t.add_pocket({t.length,        0.0f}, cfg.corner_pocket_radius);
 
-    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, -border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top left cushion
-    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, -border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // top right cushion
+    t.add_pocket({0.0f,            t.width}, cfg.corner_pocket_radius);
+    t.add_pocket({t.length / 2.0f, t.width + cfg.centre_pocket_offset}, cfg.centre_pocket_radius);
+    t.add_pocket({t.length,        t.width}, cfg.corner_pocket_radius);
 
-    t.border_boxes.push_back(t.sim.add_box({t.length/4.0f, t.width+border_width/2.0f},        2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom left cushion
-    t.border_boxes.push_back(t.sim.add_box({3.0f*t.length/4.0f, t.width+border_width/2.0f},   2*border_width + t.length/2.0f - 4*pocket_radius, border_width)); // bottom right cushion
+    add_chain(t, std::vector<glm::vec2>{
+        // top left pocket
+        glm::vec2{cfg.border_width, cfg.corner_pocket_radius + cfg.border_width},
+        glm::vec2{-cfg.corner_pocket_radius, 0},
+        glm::vec2{0, -cfg.corner_pocket_radius},
+        glm::vec2{cfg.corner_pocket_radius + cfg.border_width, cfg.border_width},
+
+        // top centre pocket
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius, cfg.border_width},
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius + cfg.centre_pocket_back_pinch, -cfg.border_width},
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius - cfg.centre_pocket_back_pinch, -cfg.border_width},
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius, cfg.border_width},
+
+        // top right pocket
+        glm::vec2{t.length - cfg.corner_pocket_radius - cfg.border_width, cfg.border_width},
+        glm::vec2{t.length, -cfg.corner_pocket_radius},
+        glm::vec2{t.length + cfg.corner_pocket_radius, 0},
+        glm::vec2{t.length - cfg.border_width, cfg.corner_pocket_radius + cfg.border_width},
+
+        // bottom right pocket
+        glm::vec2{t.length - cfg.border_width, t.width - cfg.corner_pocket_radius - cfg.border_width},
+        glm::vec2{t.length + cfg.corner_pocket_radius, t.width},
+        glm::vec2{t.length, t.width + cfg.corner_pocket_radius},
+        glm::vec2{t.length - cfg.corner_pocket_radius - cfg.border_width, t.width - cfg.border_width},
+
+        // bottom centre pocket
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius, t.width - cfg.border_width},
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius - cfg.centre_pocket_back_pinch, t.width + cfg.border_width},
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius + cfg.centre_pocket_back_pinch, t.width + cfg.border_width},
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius, t.width - cfg.border_width},
+
+        // bottom left pocket
+        glm::vec2{cfg.corner_pocket_radius + cfg.border_width, t.width - cfg.border_width},
+        glm::vec2{0, t.width + cfg.corner_pocket_radius},
+        glm::vec2{-cfg.corner_pocket_radius, t.width},
+        glm::vec2{cfg.border_width, t.width - cfg.corner_pocket_radius - cfg.border_width},
+    });
 }
 
 auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> std::optional<float>
 {
-    const auto contact = std::visit(overloaded{
+    return std::visit(overloaded{
         // To cast a circle at another circle is the same as casting a point at a circle with the radius sum
         [&](const circle_shape& shape) -> std::optional<float> {
             const auto c = circle{.centre=other.pos, .radius=shape.radius};
@@ -158,8 +218,6 @@ auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> 
             return {};
         }
     }, other.shape);
-
-    return contact;
 }
 
 auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<glm::vec2>
@@ -175,9 +233,6 @@ auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 end) -> std::opti
         if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(ball.id))) {
             best = std::min(best, *R);
         }
-    }
-    if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(t.test))) {
-        best = std::min(best, *R);
     }
     for (const auto& id : t.border_boxes) {
         if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(id))) {
@@ -223,25 +278,13 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     t.set_cue_ball({50.0f, t.width / 2.0f});
     add_triangle(t, {0.8f * t.length, t.width / 2.0f});
     add_border(t); // TODO: replace with a better construction
-    t.add_pocket({0.0f,            0.0f}, pocket_radius);
-    t.add_pocket({t.length / 2.0f, 0.0f}, pocket_radius);
-    t.add_pocket({t.length,        0.0f}, pocket_radius);
-
-    t.add_pocket({0.0f,            t.width}, pocket_radius);
-    t.add_pocket({t.length / 2.0f, t.width}, pocket_radius);
-    t.add_pocket({t.length,        t.width}, pocket_radius);
-
-    // Line test
-    const auto start = glm::vec2{20, 20};
-    const auto end = glm::vec2{150, 30};
-    t.test = t.sim.add_static_line(start, end);
     
     double accumulator = 0.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
         
-        const auto c = converter{window.dimensions(), t.dimensions(), 0.9f};
+        const auto c = converter{window.dimensions(), t.dimensions(), 0.8f};
         
         auto& cue_ball_coll = t.sim.get(t.cue_ball.id);
         const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
@@ -290,6 +333,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             renderer.push_circle(c.to_screen(coll.pos), from_hex(0x422007), c.to_screen(std::get<circle_shape>(coll.shape).radius));
         }
 
+        renderer.draw(window.width(), window.height());
+
         // Draw cue ball
         {
             const auto& ball = t.cue_ball;
@@ -322,12 +367,16 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         // Draw the boundary boxes
         for (const auto id : t.border_boxes) {
             const auto& coll = t.sim.get(id);
-            const auto& box = std::get<box_shape>(coll.shape);
-            renderer.push_quad(c.to_screen(coll.pos), c.to_screen(box.width), c.to_screen(box.height), 0, from_hex(0x73380b));
+            std::visit(overloaded{
+                [&](const box_shape& b) {
+                    renderer.push_quad(c.to_screen(coll.pos), c.to_screen(b.width), c.to_screen(b.height), 0, from_hex(0x73380b));
+                },
+                [&](const line_shape& l) {
+                    renderer.push_line(c.to_screen(coll.pos + l.start), c.to_screen(coll.pos + l.end), from_hex(0x73380b), 2.0f);
+                },
+                [&](auto&&) {}
+            }, coll.shape);
         }
-
-        // Draw TEMP line code
-        renderer.push_line(c.to_screen(start), c.to_screen(end), from_hex(0x73380b), 2.0f);
 
         // Draw cue
         renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
