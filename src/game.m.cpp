@@ -33,7 +33,15 @@ enum class next_state
     exit,
 };
 
-static constexpr auto pocket_radius = 7.0f;
+struct table_dimensions
+{
+    float border_width;
+    float centre_pocket_radius;
+    float corner_pocket_radius;
+    
+    float centre_pocket_offset;
+    float centre_pocket_back_pinch;
+};
 
 auto scene_main_menu(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
@@ -130,38 +138,63 @@ auto add_chain(table& t, const std::vector<glm::vec2>& points)
     for (std::size_t i = 0; i != points.size() - 1; ++i) {
         t.border_boxes.push_back(t.sim.add_static_line(points[i], points[i+1]));
     }
+    t.border_boxes.push_back(t.sim.add_static_line(points.back(), points.front()));
 }
 
 auto add_border(table& t) -> void
 {
-    static constexpr auto border_width = 5.0f;
+    static constexpr auto cfg = table_dimensions{
+        .border_width = 4.0f,
+        .centre_pocket_radius = 6.0f,
+        .corner_pocket_radius = 7.0f,
+        .centre_pocket_offset = 3.0f,
+        .centre_pocket_back_pinch = 2.0f
+    };
+
+    t.add_pocket({0.0f,            0.0f}, cfg.corner_pocket_radius);
+    t.add_pocket({t.length / 2.0f, -cfg.centre_pocket_offset}, cfg.centre_pocket_radius);
+    t.add_pocket({t.length,        0.0f}, cfg.corner_pocket_radius);
+
+    t.add_pocket({0.0f,            t.width}, cfg.corner_pocket_radius);
+    t.add_pocket({t.length / 2.0f, t.width + cfg.centre_pocket_offset}, cfg.centre_pocket_radius);
+    t.add_pocket({t.length,        t.width}, cfg.corner_pocket_radius);
 
     add_chain(t, std::vector<glm::vec2>{
-        glm::vec2{0.5f * pocket_radius, 1.5f * pocket_radius},
-        glm::vec2{-pocket_radius, 0},
-        glm::vec2{0, -pocket_radius},
-        glm::vec2{1.5f * pocket_radius, 0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f - pocket_radius, 0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f - pocket_radius, -0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f + pocket_radius, -0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f + pocket_radius, 0.5f * pocket_radius},
-        glm::vec2{t.length - 1.5f * pocket_radius, 0.5f * pocket_radius},
-        glm::vec2{t.length, -pocket_radius},
-        glm::vec2{t.length + pocket_radius, 0},
-        glm::vec2{t.length - 0.5f * pocket_radius, 1.5f * pocket_radius},
-        glm::vec2{t.length - 0.5f * pocket_radius, t.width - 1.5f * pocket_radius},
-        glm::vec2{t.length + pocket_radius, t.width},
-        glm::vec2{t.length, t.width + pocket_radius},
-        glm::vec2{t.length - 1.5f * pocket_radius, t.width - 0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f + pocket_radius, t.width - 0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f + pocket_radius, t.width + 0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f - pocket_radius, t.width + 0.5f * pocket_radius},
-        glm::vec2{t.length / 2.0f - pocket_radius, t.width - 0.5f * pocket_radius},
-        glm::vec2{1.5f * pocket_radius, t.width - 0.5f * pocket_radius},
-        glm::vec2{0, t.width + pocket_radius},
-        glm::vec2{-pocket_radius, t.width},
-        glm::vec2{0.5f * pocket_radius, t.width - 1.5f * pocket_radius},
-        glm::vec2{0.5f * pocket_radius, 1.5f * pocket_radius}
+        // top left pocket
+        glm::vec2{cfg.border_width, cfg.corner_pocket_radius + cfg.border_width},
+        glm::vec2{-cfg.corner_pocket_radius, 0},
+        glm::vec2{0, -cfg.corner_pocket_radius},
+        glm::vec2{cfg.corner_pocket_radius + cfg.border_width, cfg.border_width},
+
+        // top centre pocket
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius, cfg.border_width},
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius + cfg.centre_pocket_back_pinch, -cfg.border_width},
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius - cfg.centre_pocket_back_pinch, -cfg.border_width},
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius, cfg.border_width},
+
+        // top right pocket
+        glm::vec2{t.length - cfg.corner_pocket_radius - cfg.border_width, cfg.border_width},
+        glm::vec2{t.length, -cfg.corner_pocket_radius},
+        glm::vec2{t.length + cfg.corner_pocket_radius, 0},
+        glm::vec2{t.length - cfg.border_width, cfg.corner_pocket_radius + cfg.border_width},
+
+        // bottom right pocket
+        glm::vec2{t.length - cfg.border_width, t.width - cfg.corner_pocket_radius - cfg.border_width},
+        glm::vec2{t.length + cfg.corner_pocket_radius, t.width},
+        glm::vec2{t.length, t.width + cfg.corner_pocket_radius},
+        glm::vec2{t.length - cfg.corner_pocket_radius - cfg.border_width, t.width - cfg.border_width},
+
+        // bottom centre pocket
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius, t.width - cfg.border_width},
+        glm::vec2{t.length / 2.0f + cfg.centre_pocket_radius - cfg.centre_pocket_back_pinch, t.width + cfg.border_width},
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius + cfg.centre_pocket_back_pinch, t.width + cfg.border_width},
+        glm::vec2{t.length / 2.0f - cfg.centre_pocket_radius, t.width - cfg.border_width},
+
+        // bottom left pocket
+        glm::vec2{cfg.corner_pocket_radius + cfg.border_width, t.width - cfg.border_width},
+        glm::vec2{0, t.width + cfg.corner_pocket_radius},
+        glm::vec2{-cfg.corner_pocket_radius, t.width},
+        glm::vec2{cfg.border_width, t.width - cfg.corner_pocket_radius - cfg.border_width},
     });
 }
 
@@ -245,13 +278,6 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     t.set_cue_ball({50.0f, t.width / 2.0f});
     add_triangle(t, {0.8f * t.length, t.width / 2.0f});
     add_border(t); // TODO: replace with a better construction
-    t.add_pocket({0.0f,            0.0f}, pocket_radius);
-    t.add_pocket({t.length / 2.0f, 0.0f}, pocket_radius);
-    t.add_pocket({t.length,        0.0f}, pocket_radius);
-
-    t.add_pocket({0.0f,            t.width}, pocket_radius);
-    t.add_pocket({t.length / 2.0f, t.width}, pocket_radius);
-    t.add_pocket({t.length,        t.width}, pocket_radius);
     
     double accumulator = 0.0;
     while (window.is_running()) {

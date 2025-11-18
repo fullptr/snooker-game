@@ -2,7 +2,7 @@
 Snooker Game
 
 ## v0.1 todo
-- [ ] Correct border outline
+- [x] Correct border outline
 - [ ] Power meter for shots
 - [x] Completed aimer line
 - [ ] Show aim bounce
