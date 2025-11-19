@@ -280,6 +280,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     add_border(t); // TODO: replace with a better construction
     
     double accumulator = 0.0;
+    auto cue_power = std::optional<float>{};
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
@@ -291,8 +292,14 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         
         for (const auto event : window.events()) {
             ui.on_event(event);
-            if (const auto e = event.get_if<mouse_pressed_event>()) {
-                std::get<dynamic_body>(cue_ball_coll.body).vel = 400.0f * aim_direction;
+            if (const auto e = event.get_if<mouse_pressed_event>(); e && e->button == mouse::left) {
+                cue_power = 400.0f;
+            }
+            if (const auto e = event.get_if<mouse_released_event>(); e && e->button == mouse::left) {
+                if (cue_power) {
+                    std::get<dynamic_body>(cue_ball_coll.body).vel = *cue_power * aim_direction;
+                    cue_power = {};
+                }
             }
         }
 
