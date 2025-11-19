@@ -399,15 +399,17 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         if (cue) {
             const auto curr_mouse_pos = c.to_board(window.mouse_pos());
 
-            const auto A = line{.start=cue_ball_coll.pos, .end=cue->start_mouse_pos}.rel();
-            const auto B = line{.start=cue_ball_coll.pos, .end=curr_mouse_pos}.rel();
+            const auto A = cue->start_mouse_pos - cue_ball_coll.pos;
+            const auto B = curr_mouse_pos - cue_ball_coll.pos;
+            
+            const auto magnitude = glm::dot(A, B) / glm::length(A);
+            const auto offset = magnitude * glm::normalize(A);
 
-            const auto magnitude = glm::max(glm::dot(A, B) / glm::length(A), 0.0f);
-            const auto dir = A / glm::length(A);
-            const auto relvel = magnitude * glm::normalize(A);
-
-            const auto C = line{.start=cue_ball_coll.pos, .end=cue_ball_coll.pos + relvel};
-            renderer.push_line(c.to_screen(C.start), c.to_screen(C.end), {1, 0, 0, 1}, 2.0f);
+            auto C = cue_ball_coll.pos + offset - cue->start_mouse_pos;
+            if (glm::dot(C, -aim_direction) < 0) { // only allow pulling the cue back
+                C = {0.0f, 0.0f};
+            }
+            renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos + C), {0, 1, 0, 1}, 2.0f);
         }
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
