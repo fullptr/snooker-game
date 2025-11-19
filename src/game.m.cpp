@@ -220,14 +220,14 @@ auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> 
     }, other.shape);
 }
 
-auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<glm::vec2>
+auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 dir) -> std::optional<glm::vec2>
 {
     assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).shape), "cue ball must be a circle");
     const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).shape).radius;
 
     auto best = std::numeric_limits<float>::infinity();
 
-    const auto r = ray{.start=start, .dir=end-start};
+    const auto r = ray{.start=start, .dir=dir};
 
     for (const auto& ball : t.object_balls) {
         if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(ball.id))) {
@@ -288,7 +288,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         const auto c = converter{window.dimensions(), t.dimensions(), 0.8f};
         
         auto& cue_ball_coll = t.sim.get(t.cue_ball.id);
-        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
+        const auto aim_direction = glm::normalize(cue_ball_coll.pos - c.to_board(window.mouse_pos()));
         
         for (const auto event : window.events()) {
             ui.on_event(event);
@@ -352,7 +352,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Draw object balls
-        const auto contact_ball = cue_trajectory(t, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
+        const auto contact_ball = cue_trajectory(t, cue_ball_coll.pos, aim_direction);
         if (contact_ball) {
             const auto& ball = t.cue_ball;
             const auto& coll = t.sim.get(ball.id);
