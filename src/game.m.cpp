@@ -399,12 +399,12 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         if (cue) {
             const auto curr_mouse_pos = c.to_board(window.mouse_pos());
 
-            const auto A = line{.start=cue_ball_coll.pos, .end=cue->start_mouse_pos};
-            const auto B = line{.start=cue_ball_coll.pos, .end=curr_mouse_pos};
+            const auto A = line{.start=cue_ball_coll.pos, .end=cue->start_mouse_pos}.rel();
+            const auto B = line{.start=cue_ball_coll.pos, .end=curr_mouse_pos}.rel();
 
-            const auto magnitude = glm::max(glm::dot(A.rel(), B.rel()) / glm::length(A.rel()), 0.0f);
-            const auto dir = A.rel() / glm::length(A.rel());
-            const auto relvel = magnitude * A.dir();
+            const auto magnitude = glm::max(glm::dot(A, B) / glm::length(A), 0.0f);
+            const auto dir = A / glm::length(A);
+            const auto relvel = magnitude * glm::normalize(A);
 
             const auto C = line{.start=cue_ball_coll.pos, .end=cue_ball_coll.pos + relvel};
             renderer.push_line(c.to_screen(C.start), c.to_screen(C.end), {1, 0, 0, 1}, 2.0f);
