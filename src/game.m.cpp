@@ -268,6 +268,13 @@ auto adjust_alpha(glm::vec4 colour, float alpha) -> glm::vec4
     return colour;
 }
 
+struct shot
+{
+    float     power;
+    glm::vec2 direction;
+    glm::vec2 start_mouse_pos;
+};
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -279,8 +286,9 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     add_triangle(t, {0.8f * t.length, t.width / 2.0f});
     add_border(t); // TODO: replace with a better construction
     
+    auto cue = std::optional<shot>{};
+
     double accumulator = 0.0;
-    auto cue_power = std::optional<float>{};
     while (window.is_running()) {
         const double dt = timer.on_update();
         window.begin_frame(clear_colour);
@@ -288,17 +296,17 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         const auto c = converter{window.dimensions(), t.dimensions(), 0.8f};
         
         auto& cue_ball_coll = t.sim.get(t.cue_ball.id);
-        const auto aim_direction = glm::normalize(cue_ball_coll.pos - c.to_board(window.mouse_pos()));
+        const auto aim_direction = cue ? cue->direction : glm::normalize(cue_ball_coll.pos - c.to_board(window.mouse_pos()));
         
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>(); e && e->button == mouse::left) {
-                cue_power = 400.0f;
+                cue = shot{400.0f, aim_direction, c.to_board(window.mouse_pos())};
             }
             if (const auto e = event.get_if<mouse_released_event>(); e && e->button == mouse::left) {
-                if (cue_power) {
-                    std::get<dynamic_body>(cue_ball_coll.body).vel = *cue_power * aim_direction;
-                    cue_power = {};
+                if (cue) {
+                    std::get<dynamic_body>(cue_ball_coll.body).vel = cue->power * aim_direction;
+                    cue = {};
                 }
             }
         }
@@ -387,6 +395,20 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         // Draw cue
         renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
+
+        if (cue) {
+            const auto curr_mouse_pos = c.to_board(window.mouse_pos());
+
+            const auto A = line{.start=cue_ball_coll.pos, .end=cue->start_mouse_pos};
+            const auto B = line{.start=cue_ball_coll.pos, .end=curr_mouse_pos};
+
+            const auto magnitude = glm::max(glm::dot(A.rel(), B.rel()) / glm::length(A.rel()), 0.0f);
+            const auto dir = A.rel() / glm::length(A.rel());
+            const auto relvel = magnitude * A.dir();
+
+            const auto C = line{.start=cue_ball_coll.pos, .end=cue_ball_coll.pos + relvel};
+            renderer.push_line(c.to_screen(C.start), c.to_screen(C.end), {1, 0, 0, 1}, 2.0f);
+        }
 
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
