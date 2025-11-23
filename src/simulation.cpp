@@ -346,7 +346,7 @@ void simulation::step()
         fix_positions(colliders, contacts);
     
         // 5. time-step–dependent global damping
-        const auto damping = std::exp(-1.1f * dt); 
+        const auto damping = std::exp(-0.9f * dt); 
         for (auto& c : colliders) {
             if (std::holds_alternative<dynamic_body>(c.body)) {
                 auto& vel = std::get<dynamic_body>(c.body).vel;

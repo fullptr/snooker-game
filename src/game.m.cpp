@@ -273,6 +273,7 @@ struct shot
     float     power;
     glm::vec2 direction;
     glm::vec2 start_mouse_pos;
+    float     max_power = 400.0f;
 };
 
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
@@ -301,7 +302,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>(); e && e->button == mouse::left) {
-                cue = shot{400.0f, aim_direction, c.to_board(window.mouse_pos())};
+                cue = shot{0.0f, aim_direction, c.to_board(window.mouse_pos())};
             }
             if (const auto e = event.get_if<mouse_released_event>(); e && e->button == mouse::left) {
                 if (cue) {
@@ -409,6 +410,11 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             if (glm::dot(C, -aim_direction) < 0) { // only allow pulling the cue back
                 C = {0.0f, 0.0f};
             }
+            if (glm::length(C) > 30.0f) { // TODO: don't hardcode the maximum draw back
+                C = glm::normalize(C) * 30.0f;
+            }
+            cue->power = cue->max_power * glm::length(C) / 30.0f;
+            ui.text(std::format("Power: {}", std::trunc(cue->power)), {210, 0}, 200, 50, 3);
             renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos + C), {0, 1, 0, 1}, 2.0f);
         }
 
