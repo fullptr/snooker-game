@@ -418,6 +418,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos + C), {0, 1, 0, 1}, 2.0f);
         }
 
+        ui.text(std::format("Speed: {:.1f}", glm::length(std::get<dynamic_body>(t.sim.get(t.cue_ball.id).body).vel)), {410, 0}, 200, 50, 3);
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
         }
