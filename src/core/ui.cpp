@@ -104,4 +104,12 @@ bool ui_engine::button(
     return data.clicked_this_frame;
 }
 
+void ui_engine::text(std::string_view msg, glm::ivec2 pos, i32 width, i32 height, i32 scale)
+{
+    constexpr auto colour = from_hex(0x2c3e50);
+    
+    d_renderer->push_rect(pos, width, height, colour);
+    d_renderer->push_text_box(msg, pos, width, height, scale, from_hex(0xecf0f1));
+}
+
 }

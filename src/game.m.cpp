@@ -220,14 +220,14 @@ auto cue_trajectory_single_check(ray r, float radius, const collider& other) -> 
     }, other.shape);
 }
 
-auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 end) -> std::optional<glm::vec2>
+auto cue_trajectory(const table& t, glm::vec2 start, glm::vec2 dir) -> std::optional<glm::vec2>
 {
     assert_that(std::holds_alternative<circle_shape>(t.sim.get(t.cue_ball.id).shape), "cue ball must be a circle");
     const auto cue_ball_radius = std::get<circle_shape>(t.sim.get(t.cue_ball.id).shape).radius;
 
     auto best = std::numeric_limits<float>::infinity();
 
-    const auto r = ray{.start=start, .dir=end-start};
+    const auto r = ray{.start=start, .dir=dir};
 
     for (const auto& ball : t.object_balls) {
         if (const auto R = cue_trajectory_single_check(r, cue_ball_radius, t.sim.get(ball.id))) {
@@ -268,6 +268,14 @@ auto adjust_alpha(glm::vec4 colour, float alpha) -> glm::vec4
     return colour;
 }
 
+struct shot
+{
+    float     power;
+    glm::vec2 direction;
+    glm::vec2 start_mouse_pos;
+    float     max_power = 400.0f;
+};
+
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
 {
     using namespace snooker;
@@ -279,6 +287,8 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
     add_triangle(t, {0.8f * t.length, t.width / 2.0f});
     add_border(t); // TODO: replace with a better construction
     
+    auto cue = std::optional<shot>{};
+
     double accumulator = 0.0;
     while (window.is_running()) {
         const double dt = timer.on_update();
@@ -287,12 +297,18 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         const auto c = converter{window.dimensions(), t.dimensions(), 0.8f};
         
         auto& cue_ball_coll = t.sim.get(t.cue_ball.id);
-        const auto aim_direction = glm::normalize(c.to_board(window.mouse_pos()) - cue_ball_coll.pos);
+        const auto aim_direction = cue ? cue->direction : glm::normalize(cue_ball_coll.pos - c.to_board(window.mouse_pos()));
         
         for (const auto event : window.events()) {
             ui.on_event(event);
-            if (const auto e = event.get_if<mouse_pressed_event>()) {
-                std::get<dynamic_body>(cue_ball_coll.body).vel = 400.0f * aim_direction;
+            if (const auto e = event.get_if<mouse_pressed_event>(); e && e->button == mouse::left) {
+                cue = shot{0.0f, aim_direction, c.to_board(window.mouse_pos())};
+            }
+            if (const auto e = event.get_if<mouse_released_event>(); e && e->button == mouse::left) {
+                if (cue) {
+                    std::get<dynamic_body>(cue_ball_coll.body).vel = cue->power * aim_direction;
+                    cue = {};
+                }
             }
         }
 
@@ -345,7 +361,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         }
 
         // Draw object balls
-        const auto contact_ball = cue_trajectory(t, cue_ball_coll.pos, c.to_board(window.mouse_pos()));
+        const auto contact_ball = cue_trajectory(t, cue_ball_coll.pos, aim_direction);
         if (contact_ball) {
             const auto& ball = t.cue_ball;
             const auto& coll = t.sim.get(ball.id);
@@ -381,6 +397,28 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         // Draw cue
         renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos) + aim_direction * c.to_screen(5.0f), {0, 0, 1, 1}, 2.0f);
 
+        if (cue) {
+            const auto curr_mouse_pos = c.to_board(window.mouse_pos());
+
+            const auto A = cue->start_mouse_pos - cue_ball_coll.pos;
+            const auto B = curr_mouse_pos - cue_ball_coll.pos;
+            
+            const auto magnitude = glm::dot(A, B) / glm::length(A);
+            const auto offset = magnitude * glm::normalize(A);
+
+            auto C = cue_ball_coll.pos + offset - cue->start_mouse_pos;
+            if (glm::dot(C, -aim_direction) < 0) { // only allow pulling the cue back
+                C = {0.0f, 0.0f};
+            }
+            if (glm::length(C) > 30.0f) { // TODO: don't hardcode the maximum draw back
+                C = glm::normalize(C) * 30.0f;
+            }
+            cue->power = cue->max_power * glm::length(C) / 30.0f;
+            ui.text(std::format("Power: {}", std::trunc(cue->power)), {210, 0}, 200, 50, 3);
+            renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos + C), {0, 1, 0, 1}, 2.0f);
+        }
+
+        ui.text(std::format("Speed: {:.1f}", glm::length(std::get<dynamic_body>(t.sim.get(t.cue_ball.id).body).vel)), {410, 0}, 200, 50, 3);
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
         }
