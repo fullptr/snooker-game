@@ -20,13 +20,6 @@ struct line
 {
     glm::vec2 start;
     glm::vec2 end;
-
-    auto rel() const -> glm::vec2 { return end - start; }
-    auto length() const -> float { return glm::length(end - start); }
-    auto dir() const -> glm::vec2 {
-        if (length() == 0) return glm::vec2{1, 0}; // default direction for zero vector
-        return glm::normalize(end - start);
-    }
 };
 
 struct capsule
