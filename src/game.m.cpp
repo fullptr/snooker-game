@@ -380,9 +380,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.shape), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.shape).radius;
-
-            const auto colour = (contact && contact->hit_object == ball.id) ? glm::vec4{0, 1, 1, 1} : ball.colour;
-            renderer.push_circle(c.to_screen(coll.pos), colour, c.to_screen(radius));
+            renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
         }
 
         // Draw the direction of both balls after 
