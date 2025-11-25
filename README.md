@@ -5,7 +5,7 @@ Snooker Game
 - [x] Correct border outline
 - [x] Power meter for shots
 - [x] Completed aimer line
-- [ ] Show aim bounce
+- [x] Show aim bounce
 - [ ] Handle potting the cue ball
 - [ ] Detect foul shots
 - [ ] Only allow next shot after all balls stop moving 
