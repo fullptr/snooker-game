@@ -3,9 +3,9 @@ Snooker Game
 
 ## v0.1 todo
 - [x] Correct border outline
-- [ ] Power meter for shots
+- [x] Power meter for shots
 - [x] Completed aimer line
-- [ ] Show aim bounce
+- [x] Show aim bounce
 - [ ] Handle potting the cue ball
 - [ ] Detect foul shots
 - [ ] Only allow next shot after all balls stop moving 
