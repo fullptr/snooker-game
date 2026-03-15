@@ -45,9 +45,9 @@ struct dynamic_body
     float     moment_of_inertia;
     glm::vec2 vel;
     // Angular velocity (ωx, ωy) about the table-plane axes.
-    // Contact point velocity from spin = (-spin.y, spin.x) * radius.
-    // Rolling condition: spin = (-vel.y, vel.x) / radius.
-    glm::vec2 spin = {0.0f, 0.0f};
+    // Contact point velocity = (-angular_vel.y, angular_vel.x) * radius.
+    // Rolling condition: angular_vel = (-vel.y, vel.x) / radius.
+    glm::vec2 angular_vel = {0.0f, 0.0f};
 };
 
 using body_type = std::variant<static_body, attractor_body, dynamic_body>;

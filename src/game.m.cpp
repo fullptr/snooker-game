@@ -316,10 +316,10 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
                 if (cue) {
                     auto& body = std::get<dynamic_body>(cue_ball_coll.body);
                     body.vel   = cue->power * aim_direction;
-                    // Rolling spin for this velocity = (-vel.y, vel.x) / radius.
-                    // spin_factor scales from that: -1 is full backspin, 0 is stun, +1 is topspin.
+
+                    // The axis of spin is always perpendicular to the direction of motion
                     const auto radius = std::get<circle_shape>(cue_ball_coll.shape).radius;
-                    body.spin  = cue->spin_factor * glm::vec2{-body.vel.y, body.vel.x} / radius;
+                    body.angular_vel = cue->spin_factor * glm::vec2{-body.vel.y, body.vel.x} / radius;
                     cue = {};
                 }
             }

@@ -43,10 +43,10 @@ auto velocity(const collider& c) -> glm::vec2
     return {0.0f, 0.0f};
 }
 
-auto spin(const collider& c) -> glm::vec2
+auto angular_vel(const collider& c) -> glm::vec2
 {
     if (std::holds_alternative<dynamic_body>(c.body)) {
-        return std::get<dynamic_body>(c.body).spin;
+        return std::get<dynamic_body>(c.body).angular_vel;
     }
     return {0.0f, 0.0f};
 }
@@ -59,11 +59,11 @@ auto apply_impulse(collider& c, glm::vec2 impulse) -> void
     }
 }
 
-auto apply_spin_impulse(collider& c, glm::vec2 torque_impulse) -> void
+auto apply_angular_impulse(collider& c, glm::vec2 torque_impulse) -> void
 {
     if (std::holds_alternative<dynamic_body>(c.body)) {
         auto& body = std::get<dynamic_body>(c.body);
-        body.spin += torque_impulse * safe_inverse(body.moment_of_inertia);
+        body.angular_vel += torque_impulse * safe_inverse(body.moment_of_inertia);
     }
 }
 
@@ -306,7 +306,7 @@ void apply_cloth_friction(collider& c, float dt)
     // Velocity of the contact point on the cloth surface.
     // In 3D, contact is at (0,0,-r). With spin = (ωx, ωy, 0):
     //   v_contact = vel + spin × (0,0,-r) = vel + (-spin.y, spin.x) * r
-    const auto v_slip = body.vel + glm::vec2{-body.spin.y, body.spin.x} * radius;
+    const auto v_slip = body.vel + glm::vec2{-body.angular_vel.y, body.angular_vel.x} * radius;
     const auto slip_speed = glm::length(v_slip);
 
     if (slip_speed > simulation::slip_threshold) {
@@ -327,21 +327,21 @@ void apply_cloth_friction(collider& c, float dt)
 
         // Spin impulse: torque from friction at contact = r_contact × F
         //   Δspin = p * r / I * (-n.y, n.x)
-        body.spin += p * radius * inv_I * glm::vec2{-n_slip.y, n_slip.x};
+        body.angular_vel += p * radius * inv_I * glm::vec2{-n_slip.y, n_slip.x};
     } else {
         // --- Rolling ---
         // Snap spin to the exact rolling value to avoid drift.
-        body.spin = glm::vec2{-body.vel.y, body.vel.x} / radius;
+        body.angular_vel = glm::vec2{-body.vel.y, body.vel.x} / radius;
 
         // Low rolling-resistance deceleration.
         const auto speed = glm::length(body.vel);
         if (speed > 1e-4f) {
             const auto decel = std::min(simulation::friction_rolling * dt, speed);
             body.vel  -= (decel / speed) * body.vel;
-            body.spin  = glm::vec2{-body.vel.y, body.vel.x} / radius;
+            body.angular_vel  = glm::vec2{-body.vel.y, body.vel.x} / radius;
         } else {
             body.vel  = {0.0f, 0.0f};
-            body.spin = {0.0f, 0.0f};
+            body.angular_vel = {0.0f, 0.0f};
         }
     }
 }
