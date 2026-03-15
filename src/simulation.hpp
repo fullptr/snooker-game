@@ -44,7 +44,7 @@ struct dynamic_body
     float     mass;
     float     moment_of_inertia;
     glm::vec2 vel;
-    // Angular velocity (ωx, ωy) about the table-plane axes.
+    // Angular velocity (wx, wy) about the table-plane axes.
     // Contact point velocity = (-angular_vel.y, angular_vel.x) * radius.
     // Rolling condition: angular_vel = (-vel.y, vel.x) / radius.
     glm::vec2 angular_vel = {0.0f, 0.0f};
@@ -67,15 +67,15 @@ public:
     static constexpr auto time_step = 1.0f / 60.0f;
     static constexpr auto num_substeps = 20;
 
-    // Friction deceleration in cm/s² (units match table.hpp).
-    // friction_sliding = μ_k * g ≈ 0.2 * 981  (kinetic sliding on cloth)
+    // Friction deceleration in cm/s^2 (units match table.hpp).
+    // friction_sliding = mu_k * g ~= 0.2 * 981  (kinetic sliding on cloth)
     // friction_rolling = empirical rolling resistance for snooker cloth
     static constexpr auto friction_sliding      = 200.0f;
     static constexpr auto friction_rolling      = 30.0f;
-    static constexpr auto slip_threshold        = 0.5f;  // cm/s — below this the ball counts as rolling
+    static constexpr auto slip_threshold        = 0.5f;  // cm/s - below this the ball counts as rolling
     static constexpr auto num_solver_iterations = 10;    // PGS iterations per substep
-    static constexpr auto contact_friction       = 0.05f; // μ for ball-ball / ball-cushion throw
-    static constexpr auto restitution_ball_ball  = 0.95f; // nearly elastic — snooker balls are very hard
+    static constexpr auto contact_friction       = 0.05f; // mu for ball-ball / ball-cushion throw
+    static constexpr auto restitution_ball_ball  = 0.95f; // nearly elastic - snooker balls are very hard
     static constexpr auto restitution_ball_cushion = 0.80f; // cushion absorbs more energy
 
     auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t

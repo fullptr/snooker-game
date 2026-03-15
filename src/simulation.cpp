@@ -217,7 +217,7 @@ void solve_contacts(std::vector<collider>& colliders,
     // Per-contact cache computed once from the initial velocities.
     struct contact_cache {
         float v_target;  // desired relative velocity along normal after resolution
-        float eff_mass;  // 1 / (inv_m_a + inv_m_b) — effective mass for normal and tangential impulse
+        float eff_mass;  // 1 / (inv_m_a + inv_m_b) - effective mass for normal and tangential impulse
         float lambda_t = 0.0f; // accumulated tangential impulse (for Coulomb clamping across iterations)
     };
 
@@ -229,7 +229,7 @@ void solve_contacts(std::vector<collider>& colliders,
         const auto  rv  = glm::dot(velocity(colliders[c.b]) - velocity(colliders[c.a]), c.normal);
 
         // Per-contact restitution: ball-ball is nearly elastic, ball-cushion loses more energy.
-        // Positional correction is handled entirely by fix_positions — no Baumgarte bias here,
+        // Positional correction is handled entirely by fix_positions - no Baumgarte bias here,
         // which avoids the energy injection that comes from mixing position and velocity corrections.
         const auto both_dynamic = std::holds_alternative<dynamic_body>(colliders[c.a].body)
                                 && std::holds_alternative<dynamic_body>(colliders[c.b].body);
@@ -263,7 +263,7 @@ void solve_contacts(std::vector<collider>& colliders,
 
             // --- Tangential impulse (Coulomb friction / throw) ---
             // Normal impulse is perpendicular to tangent so rv_t is unaffected by impulse_n.
-            // Spin doesn't contribute here: at a ball-ball contact, ω×r_contact is along z
+            // Spin doesn't contribute here: at a ball-ball contact, w x r_contact is along z
             // (out of the table plane) and has no 2D tangential component.
             const auto rv_t         = glm::dot(v_rel, tangent);
             const auto delta_t      = -rv_t * cache[i].eff_mass;
@@ -304,19 +304,19 @@ void apply_cloth_friction(collider& c, float dt)
     const auto inv_I   = safe_inverse(body.moment_of_inertia);
 
     // Velocity of the contact point on the cloth surface.
-    // In 3D, contact is at (0,0,-r). With spin = (ωx, ωy, 0):
-    //   v_contact = vel + spin × (0,0,-r) = vel + (-spin.y, spin.x) * r
+    // In 3D, contact is at (0,0,-r). With spin = (wx, wy, 0):
+    //   v_contact = vel + spin x (0,0,-r) = vel + (-spin.y, spin.x) * r
     const auto v_slip = body.vel + glm::vec2{-body.angular_vel.y, body.angular_vel.x} * radius;
     const auto slip_speed = glm::length(v_slip);
 
     if (slip_speed > simulation::slip_threshold) {
         // --- Sliding ---
         // Apply a Coulomb friction impulse opposing the slip direction,
-        // capped so it can't reverse the slip (p_stop) or exceed μ_k*m*g*dt (p_max).
+        // capped so it can't reverse the slip (p_stop) or exceed mu_k*m*g*dt (p_max).
         const auto n_slip = v_slip / slip_speed;
 
         // Effective inverse mass at the contact point for a tangential impulse:
-        //   Δv_slip = P * (1/m + r²/I)  →  for I=2/5·m·r², this equals P * 7/(2m)
+        //   dv_slip = P * (1/m + r^2/I)  ->  for I=2/5*m*r^2, this equals P * 7/(2m)
         const auto eff_inv_mass = inv_m + radius * radius * inv_I;
         const auto p_stop = slip_speed / eff_inv_mass;
         const auto p_max  = simulation::friction_sliding * body.mass * dt;
@@ -325,8 +325,8 @@ void apply_cloth_friction(collider& c, float dt)
         // Linear impulse: oppose slip
         body.vel -= p * inv_m * n_slip;
 
-        // Spin impulse: torque from friction at contact = r_contact × F
-        //   Δspin = p * r / I * (-n.y, n.x)
+        // Spin impulse: torque from friction at contact = r_contact x F
+        //   d_spin = p * r / I * (-n.y, n.x)
         body.angular_vel += p * radius * inv_I * glm::vec2{-n_slip.y, n_slip.x};
     } else {
         // --- Rolling ---
