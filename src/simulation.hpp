@@ -44,7 +44,10 @@ struct dynamic_body
     float     mass;
     float     moment_of_inertia;
     glm::vec2 vel;
-    float     angular_vel = 0.0f; // radians per second, positive = counter-clockwise
+    // Angular velocity (ωx, ωy) about the table-plane axes.
+    // Contact point velocity from spin = (-spin.y, spin.x) * radius.
+    // Rolling condition: spin = (-vel.y, vel.x) / radius.
+    glm::vec2 spin = {0.0f, 0.0f};
 };
 
 using body_type = std::variant<static_body, attractor_body, dynamic_body>;
@@ -63,6 +66,13 @@ class simulation
 public:
     static constexpr auto time_step = 1.0f / 60.0f;
     static constexpr auto num_substeps = 20;
+
+    // Friction deceleration in cm/s² (units match table.hpp).
+    // friction_sliding = μ_k * g ≈ 0.2 * 981  (kinetic sliding on cloth)
+    // friction_rolling = empirical rolling resistance for snooker cloth
+    static constexpr auto friction_sliding = 200.0f;
+    static constexpr auto friction_rolling = 80.0f;
+    static constexpr auto slip_threshold   = 0.5f;   // cm/s — below this the ball counts as rolling
 
     auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
     {

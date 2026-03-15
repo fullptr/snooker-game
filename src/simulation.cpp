@@ -43,12 +43,12 @@ auto velocity(const collider& c) -> glm::vec2
     return {0.0f, 0.0f};
 }
 
-auto angular_velocity(const collider& c) -> float
+auto spin(const collider& c) -> glm::vec2
 {
     if (std::holds_alternative<dynamic_body>(c.body)) {
-        return std::get<dynamic_body>(c.body).angular_vel;
+        return std::get<dynamic_body>(c.body).spin;
     }
-    return 0.0f;
+    return {0.0f, 0.0f};
 }
 
 auto apply_impulse(collider& c, glm::vec2 impulse) -> void
@@ -59,12 +59,11 @@ auto apply_impulse(collider& c, glm::vec2 impulse) -> void
     }
 }
 
-// torque_impulse > 0 = counter-clockwise spin
-auto apply_angular_impulse(collider& c, float torque_impulse) -> void
+auto apply_spin_impulse(collider& c, glm::vec2 torque_impulse) -> void
 {
     if (std::holds_alternative<dynamic_body>(c.body)) {
         auto& body = std::get<dynamic_body>(c.body);
-        body.angular_vel += torque_impulse * safe_inverse(body.moment_of_inertia);
+        body.spin += torque_impulse * safe_inverse(body.moment_of_inertia);
     }
 }
 
@@ -310,6 +309,63 @@ void fix_positions(std::vector<collider>& colliders, const std::vector<contact>&
     }
 }
 
+
+// Applies cloth friction to a single ball for one substep.
+// Distinguishes sliding (high friction, spin catching up to velocity) from
+// rolling (low friction, pure deceleration once spin and velocity are matched).
+void apply_cloth_friction(collider& c, float dt)
+{
+    if (!std::holds_alternative<dynamic_body>(c.body)) return;
+    if (!std::holds_alternative<circle_shape>(c.shape)) return;
+
+    auto& body         = std::get<dynamic_body>(c.body);
+    const auto radius  = std::get<circle_shape>(c.shape).radius;
+    const auto inv_m   = safe_inverse(body.mass);
+    const auto inv_I   = safe_inverse(body.moment_of_inertia);
+
+    // Velocity of the contact point on the cloth surface.
+    // In 3D, contact is at (0,0,-r). With spin = (ωx, ωy, 0):
+    //   v_contact = vel + spin × (0,0,-r) = vel + (-spin.y, spin.x) * r
+    const auto v_slip = body.vel + glm::vec2{-body.spin.y, body.spin.x} * radius;
+    const auto slip_speed = glm::length(v_slip);
+
+    if (slip_speed > simulation::slip_threshold) {
+        // --- Sliding ---
+        // Apply a Coulomb friction impulse opposing the slip direction,
+        // capped so it can't reverse the slip (p_stop) or exceed μ_k*m*g*dt (p_max).
+        const auto n_slip = v_slip / slip_speed;
+
+        // Effective inverse mass at the contact point for a tangential impulse:
+        //   Δv_slip = P * (1/m + r²/I)  →  for I=2/5·m·r², this equals P * 7/(2m)
+        const auto eff_inv_mass = inv_m + radius * radius * inv_I;
+        const auto p_stop = slip_speed / eff_inv_mass;
+        const auto p_max  = simulation::friction_sliding * body.mass * dt;
+        const auto p      = std::min(p_stop, p_max);
+
+        // Linear impulse: oppose slip
+        body.vel -= p * inv_m * n_slip;
+
+        // Spin impulse: torque from friction at contact = r_contact × F
+        //   Δspin = p * r / I * (-n.y, n.x)
+        body.spin += p * radius * inv_I * glm::vec2{-n_slip.y, n_slip.x};
+    } else {
+        // --- Rolling ---
+        // Snap spin to the exact rolling value to avoid drift.
+        body.spin = glm::vec2{-body.vel.y, body.vel.x} / radius;
+
+        // Low rolling-resistance deceleration.
+        const auto speed = glm::length(body.vel);
+        if (speed > 1e-4f) {
+            const auto decel = std::min(simulation::friction_rolling * dt, speed);
+            body.vel  -= (decel / speed) * body.vel;
+            body.spin  = glm::vec2{-body.vel.y, body.vel.x} / radius;
+        } else {
+            body.vel  = {0.0f, 0.0f};
+            body.spin = {0.0f, 0.0f};
+        }
+    }
+}
+
 }
 
 void simulation::step()
@@ -368,16 +424,9 @@ void simulation::step()
         // 4. positional correction
         fix_positions(colliders, contacts);
     
-        // 5. time-step–dependent global damping
-        const auto damping = std::exp(-0.9f * dt); 
+        // 5. cloth friction (sliding or rolling per ball)
         for (auto& c : colliders) {
-            if (std::holds_alternative<dynamic_body>(c.body)) {
-                auto& vel = std::get<dynamic_body>(c.body).vel;
-                vel *= damping;
-                if (glm::length(vel) < 0.01f) {
-                    vel = glm::vec2{0, 0};
-                }
-            }
+            apply_cloth_friction(c, dt);
         }
     }
 }
