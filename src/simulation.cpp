@@ -213,88 +213,46 @@ void solve_contacts(std::vector<collider>& colliders,
                     float restitution = 0.8f)
 {
     const auto N = contacts.size();
-    if (N == 0) {
-        return;
-    }
+    if (N == 0) return;
 
-    // set up equation A*j = b, where A is the constraint matrix, j is the unknown
-    // impulse vector, and b is the desired velocity change (the bias term).
-    // to do this, start with A*b and use Gaussian elimination, which results in b
-    // turning into j
+    // Per-contact cache computed once from the initial velocities.
+    struct contact_cache {
+        float v_target;  // desired relative velocity along normal after resolution
+        float eff_mass;  // 1 / (inv_m_a + inv_m_b) — effective mass for normal impulse
+    };
 
-    std::vector<float> A(N * N, 0.0f);
-    std::vector<float> b(N, 0.0f);
+    std::vector<float>         lambda(N, 0.0f);
+    std::vector<contact_cache> cache(N);
 
     for (int i = 0; i < N; ++i) {
-        const auto& ci = contacts[i];
-        const auto a1 = ci.a;
-        const auto b1 = ci.b;
-        const auto normal_i = ci.normal;
+        const auto& c   = contacts[i];
+        const auto  rv  = glm::dot(velocity(colliders[c.b]) - velocity(colliders[c.a]), c.normal);
 
-        const auto rv = velocity(colliders[b1]) - velocity(colliders[a1]);
-        const auto rel_vel = glm::dot(rv, normal_i);
+        // Target: bounce with restitution if approaching, plus Baumgarte positional bias.
+        const auto restitution_term = (rv < -1e-6f) ? -restitution * rv : 0.0f;
+        const auto baumgarte_term   = 0.2f * std::max(c.penetration, 0.0f);
+        cache[i].v_target = restitution_term + baumgarte_term;
 
-        // only apply restitution if moving into contact
-        b[i] = (rel_vel < -1e-6f) ? -(1.0f + restitution) * rel_vel : 0.0f;
-
-        // baumgarte positional bias
-        b[i] += 0.2f * std::max(ci.penetration, 0.0f);
-
-        // fill constraint matrix
-        for (int j = 0; j < N; ++j) {
-            const auto& cj = contacts[j];
-            const auto a2 = cj.a;
-            const auto b2 = cj.b;
-            const auto normal_j = cj.normal;
-
-            auto val = 0.0f;
-            const auto dot = glm::dot(normal_i, normal_j);
-            if (a1 == a2) {
-                val += dot * inv_mass(colliders[a1]);
-            }
-            if (b1 >= 0 && b1 == a2) {
-                val -= dot * inv_mass(colliders[b1]);
-            }
-            if (a1 == b2) {
-                val -= dot * inv_mass(colliders[a1]);
-            }
-            if (b1 >= 0 && b1 == b2) {
-                val += dot * inv_mass(colliders[b1]);
-            }
-
-            A[i * N + j] = val;
-        }
+        const auto a_ii = inv_mass(colliders[c.a]) + inv_mass(colliders[c.b]);
+        cache[i].eff_mass = (a_ii > 1e-8f) ? 1.0f / a_ii : 0.0f;
     }
 
-    // naive Gaussian elimination
-    for (int k = 0; k < N; ++k) {
-        const auto diag = A[k * N + k];
-        if (glm::abs(diag) < 1e-8f) {
-            continue;
-        }
-        const auto inv_diag = 1.0f / diag;
-        for (int col = k; col < N; ++col) {
-            A[k * N + col] *= inv_diag;
-        }
-        b[k] *= inv_diag;
+    // Projected Gauss-Seidel: iterate, updating velocities in-place after each
+    // impulse so later contacts in the same pass see the corrected state.
+    // Clamping lambda >= 0 enforces that contacts can only push, never pull.
+    for (int iter = 0; iter < simulation::num_solver_iterations; ++iter) {
+        for (int i = 0; i < N; ++i) {
+            const auto& c  = contacts[i];
+            const auto  rv = glm::dot(velocity(colliders[c.b]) - velocity(colliders[c.a]), c.normal);
 
-        for (int row = 0; row < N; ++row) {
-            if (row == k) continue;
-            const auto factor = A[row * N + k];
-            for (int col = k; col < N; ++col) {
-                A[row * N + col] -= factor * A[k * N + col];
-            }
-            b[row] -= factor * b[k];
-        }
-    }
-    auto& j = b; // in reduced echelon form, b now stores j
+            const auto delta      = (cache[i].v_target - rv) * cache[i].eff_mass;
+            const auto lambda_old = lambda[i];
+            lambda[i] = std::max(0.0f, lambda[i] + delta);
 
-    // apply impulses
-    for (int i = 0; i < N; ++i) {
-        const auto& c = contacts[i];
-        const auto impulse = j[i] * c.normal;
-        apply_impulse(colliders[c.a], -impulse);
-        apply_impulse(colliders[c.b], impulse);
+            const auto impulse = (lambda[i] - lambda_old) * c.normal;
+            apply_impulse(colliders[c.a], -impulse);
+            apply_impulse(colliders[c.b],  impulse);
+        }
     }
 }
 

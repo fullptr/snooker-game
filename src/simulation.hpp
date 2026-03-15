@@ -70,9 +70,10 @@ public:
     // Friction deceleration in cm/s² (units match table.hpp).
     // friction_sliding = μ_k * g ≈ 0.2 * 981  (kinetic sliding on cloth)
     // friction_rolling = empirical rolling resistance for snooker cloth
-    static constexpr auto friction_sliding = 200.0f;
-    static constexpr auto friction_rolling = 80.0f;
-    static constexpr auto slip_threshold   = 0.5f;   // cm/s — below this the ball counts as rolling
+    static constexpr auto friction_sliding      = 200.0f;
+    static constexpr auto friction_rolling      = 80.0f;
+    static constexpr auto slip_threshold        = 0.5f;  // cm/s — below this the ball counts as rolling
+    static constexpr auto num_solver_iterations = 10;    // PGS iterations per substep
 
     auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
     {
