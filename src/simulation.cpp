@@ -209,8 +209,7 @@ auto generate_contacts(const std::vector<collider>& colliders) -> std::vector<co
 }
 
 void solve_contacts(std::vector<collider>& colliders,
-                    const std::vector<contact>& contacts,
-                    float restitution = 0.8f)
+                    const std::vector<contact>& contacts)
 {
     const auto N = contacts.size();
     if (N == 0) return;
@@ -229,10 +228,15 @@ void solve_contacts(std::vector<collider>& colliders,
         const auto& c   = contacts[i];
         const auto  rv  = glm::dot(velocity(colliders[c.b]) - velocity(colliders[c.a]), c.normal);
 
-        // Target: bounce with restitution if approaching, plus Baumgarte positional bias.
-        const auto restitution_term = (rv < -1e-6f) ? -restitution * rv : 0.0f;
-        const auto baumgarte_term   = 0.2f * std::max(c.penetration, 0.0f);
-        cache[i].v_target = restitution_term + baumgarte_term;
+        // Per-contact restitution: ball-ball is nearly elastic, ball-cushion loses more energy.
+        // Positional correction is handled entirely by fix_positions — no Baumgarte bias here,
+        // which avoids the energy injection that comes from mixing position and velocity corrections.
+        const auto both_dynamic = std::holds_alternative<dynamic_body>(colliders[c.a].body)
+                                && std::holds_alternative<dynamic_body>(colliders[c.b].body);
+        const auto e = both_dynamic ? simulation::restitution_ball_ball
+                                    : simulation::restitution_ball_cushion;
+
+        cache[i].v_target = (rv < -1e-6f) ? -e * rv : 0.0f;
 
         const auto a_ii = inv_mass(colliders[c.a]) + inv_mass(colliders[c.b]);
         cache[i].eff_mass = (a_ii > 1e-8f) ? 1.0f / a_ii : 0.0f;
