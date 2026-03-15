@@ -74,6 +74,7 @@ public:
     static constexpr auto friction_rolling      = 80.0f;
     static constexpr auto slip_threshold        = 0.5f;  // cm/s — below this the ball counts as rolling
     static constexpr auto num_solver_iterations = 10;    // PGS iterations per substep
+    static constexpr auto contact_friction      = 0.05f; // μ for ball-ball / ball-cushion throw
 
     auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
     {

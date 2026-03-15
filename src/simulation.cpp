@@ -218,7 +218,8 @@ void solve_contacts(std::vector<collider>& colliders,
     // Per-contact cache computed once from the initial velocities.
     struct contact_cache {
         float v_target;  // desired relative velocity along normal after resolution
-        float eff_mass;  // 1 / (inv_m_a + inv_m_b) — effective mass for normal impulse
+        float eff_mass;  // 1 / (inv_m_a + inv_m_b) — effective mass for normal and tangential impulse
+        float lambda_t = 0.0f; // accumulated tangential impulse (for Coulomb clamping across iterations)
     };
 
     std::vector<float>         lambda(N, 0.0f);
@@ -239,19 +240,36 @@ void solve_contacts(std::vector<collider>& colliders,
 
     // Projected Gauss-Seidel: iterate, updating velocities in-place after each
     // impulse so later contacts in the same pass see the corrected state.
-    // Clamping lambda >= 0 enforces that contacts can only push, never pull.
     for (int iter = 0; iter < simulation::num_solver_iterations; ++iter) {
         for (int i = 0; i < N; ++i) {
-            const auto& c  = contacts[i];
-            const auto  rv = glm::dot(velocity(colliders[c.b]) - velocity(colliders[c.a]), c.normal);
+            const auto& c      = contacts[i];
+            const auto  v_rel  = velocity(colliders[c.b]) - velocity(colliders[c.a]);
+            const auto  tangent = glm::vec2{-c.normal.y, c.normal.x};
 
-            const auto delta      = (cache[i].v_target - rv) * cache[i].eff_mass;
+            // --- Normal impulse ---
+            // Clamping lambda >= 0 enforces that contacts can only push, never pull.
+            const auto rv_n       = glm::dot(v_rel, c.normal);
+            const auto delta_n    = (cache[i].v_target - rv_n) * cache[i].eff_mass;
             const auto lambda_old = lambda[i];
-            lambda[i] = std::max(0.0f, lambda[i] + delta);
+            lambda[i] = std::max(0.0f, lambda[i] + delta_n);
 
-            const auto impulse = (lambda[i] - lambda_old) * c.normal;
-            apply_impulse(colliders[c.a], -impulse);
-            apply_impulse(colliders[c.b],  impulse);
+            const auto impulse_n = (lambda[i] - lambda_old) * c.normal;
+            apply_impulse(colliders[c.a], -impulse_n);
+            apply_impulse(colliders[c.b],  impulse_n);
+
+            // --- Tangential impulse (Coulomb friction / throw) ---
+            // Normal impulse is perpendicular to tangent so rv_t is unaffected by impulse_n.
+            // Spin doesn't contribute here: at a ball-ball contact, ω×r_contact is along z
+            // (out of the table plane) and has no 2D tangential component.
+            const auto rv_t         = glm::dot(v_rel, tangent);
+            const auto delta_t      = -rv_t * cache[i].eff_mass;
+            const auto friction_cap = simulation::contact_friction * lambda[i];
+            const auto lambda_t_old = cache[i].lambda_t;
+            cache[i].lambda_t = std::clamp(cache[i].lambda_t + delta_t, -friction_cap, friction_cap);
+
+            const auto impulse_t = (cache[i].lambda_t - lambda_t_old) * tangent;
+            apply_impulse(colliders[c.a], -impulse_t);
+            apply_impulse(colliders[c.b],  impulse_t);
         }
     }
 }
