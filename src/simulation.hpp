@@ -42,7 +42,9 @@ struct attractor_body
 struct dynamic_body
 {
     float     mass;
+    float     moment_of_inertia;
     glm::vec2 vel;
+    float     angular_vel = 0.0f; // radians per second, positive = counter-clockwise
 };
 
 using body_type = std::variant<static_body, attractor_body, dynamic_body>;
@@ -64,7 +66,8 @@ public:
 
     auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
     {
-        const auto col = collider{ .pos=pos, .body=dynamic_body{ .mass=mass, .vel={0.0f, 0.0f} }, .shape=circle_shape{radius} };
+        const auto moi = 0.4f * mass * radius * radius; // solid sphere: I = 2/5 * m * r^2
+        const auto col = collider{ .pos=pos, .body=dynamic_body{ .mass=mass, .moment_of_inertia=moi, .vel={0.0f, 0.0f} }, .shape=circle_shape{radius} };
         const auto id = d_colliders.insert(col);
         return id;
     }

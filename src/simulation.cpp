@@ -29,6 +29,12 @@ auto inv_mass(const collider& c) -> float
     return safe_inverse(std::get<dynamic_body>(c.body).mass);
 }
 
+auto inv_inertia(const collider& c) -> float
+{
+    if (!std::holds_alternative<dynamic_body>(c.body)) return 0;
+    return safe_inverse(std::get<dynamic_body>(c.body).moment_of_inertia);
+}
+
 auto velocity(const collider& c) -> glm::vec2
 {
     if (std::holds_alternative<dynamic_body>(c.body)) {
@@ -37,11 +43,28 @@ auto velocity(const collider& c) -> glm::vec2
     return {0.0f, 0.0f};
 }
 
+auto angular_velocity(const collider& c) -> float
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        return std::get<dynamic_body>(c.body).angular_vel;
+    }
+    return 0.0f;
+}
+
 auto apply_impulse(collider& c, glm::vec2 impulse) -> void
 {
     if (std::holds_alternative<dynamic_body>(c.body)) {
         auto& body = std::get<dynamic_body>(c.body);
         body.vel += impulse * safe_inverse(body.mass);
+    }
+}
+
+// torque_impulse > 0 = counter-clockwise spin
+auto apply_angular_impulse(collider& c, float torque_impulse) -> void
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        auto& body = std::get<dynamic_body>(c.body);
+        body.angular_vel += torque_impulse * safe_inverse(body.moment_of_inertia);
     }
 }
 
