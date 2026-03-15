@@ -29,10 +29,24 @@ auto inv_mass(const collider& c) -> float
     return safe_inverse(std::get<dynamic_body>(c.body).mass);
 }
 
+auto inv_inertia(const collider& c) -> float
+{
+    if (!std::holds_alternative<dynamic_body>(c.body)) return 0;
+    return safe_inverse(std::get<dynamic_body>(c.body).moment_of_inertia);
+}
+
 auto velocity(const collider& c) -> glm::vec2
 {
     if (std::holds_alternative<dynamic_body>(c.body)) {
         return std::get<dynamic_body>(c.body).vel;
+    }
+    return {0.0f, 0.0f};
+}
+
+auto angular_vel(const collider& c) -> glm::vec2
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        return std::get<dynamic_body>(c.body).angular_vel;
     }
     return {0.0f, 0.0f};
 }
@@ -42,6 +56,14 @@ auto apply_impulse(collider& c, glm::vec2 impulse) -> void
     if (std::holds_alternative<dynamic_body>(c.body)) {
         auto& body = std::get<dynamic_body>(c.body);
         body.vel += impulse * safe_inverse(body.mass);
+    }
+}
+
+auto apply_angular_impulse(collider& c, glm::vec2 torque_impulse) -> void
+{
+    if (std::holds_alternative<dynamic_body>(c.body)) {
+        auto& body = std::get<dynamic_body>(c.body);
+        body.angular_vel += torque_impulse * safe_inverse(body.moment_of_inertia);
     }
 }
 
@@ -187,92 +209,72 @@ auto generate_contacts(const std::vector<collider>& colliders) -> std::vector<co
 }
 
 void solve_contacts(std::vector<collider>& colliders,
-                    const std::vector<contact>& contacts,
-                    float restitution = 0.8f)
+                    const std::vector<contact>& contacts)
 {
     const auto N = contacts.size();
-    if (N == 0) {
-        return;
-    }
+    if (N == 0) return;
 
-    // set up equation A*j = b, where A is the constraint matrix, j is the unknown
-    // impulse vector, and b is the desired velocity change (the bias term).
-    // to do this, start with A*b and use Gaussian elimination, which results in b
-    // turning into j
+    // Per-contact cache computed once from the initial velocities.
+    struct contact_cache {
+        float v_target;  // desired relative velocity along normal after resolution
+        float eff_mass;  // 1 / (inv_m_a + inv_m_b) - effective mass for normal and tangential impulse
+        float lambda_t = 0.0f; // accumulated tangential impulse (for Coulomb clamping across iterations)
+    };
 
-    std::vector<float> A(N * N, 0.0f);
-    std::vector<float> b(N, 0.0f);
+    std::vector<float>         lambda(N, 0.0f);
+    std::vector<contact_cache> cache(N);
 
     for (int i = 0; i < N; ++i) {
-        const auto& ci = contacts[i];
-        const auto a1 = ci.a;
-        const auto b1 = ci.b;
-        const auto normal_i = ci.normal;
+        const auto& c   = contacts[i];
+        const auto  rv  = glm::dot(velocity(colliders[c.b]) - velocity(colliders[c.a]), c.normal);
 
-        const auto rv = velocity(colliders[b1]) - velocity(colliders[a1]);
-        const auto rel_vel = glm::dot(rv, normal_i);
+        // Per-contact restitution: ball-ball is nearly elastic, ball-cushion loses more energy.
+        // Positional correction is handled entirely by fix_positions - no Baumgarte bias here,
+        // which avoids the energy injection that comes from mixing position and velocity corrections.
+        const auto both_dynamic = std::holds_alternative<dynamic_body>(colliders[c.a].body)
+                                && std::holds_alternative<dynamic_body>(colliders[c.b].body);
+        const auto e = both_dynamic ? simulation::restitution_ball_ball
+                                    : simulation::restitution_ball_cushion;
 
-        // only apply restitution if moving into contact
-        b[i] = (rel_vel < -1e-6f) ? -(1.0f + restitution) * rel_vel : 0.0f;
+        cache[i].v_target = (rv < -1e-6f) ? -e * rv : 0.0f;
 
-        // baumgarte positional bias
-        b[i] += 0.2f * std::max(ci.penetration, 0.0f);
-
-        // fill constraint matrix
-        for (int j = 0; j < N; ++j) {
-            const auto& cj = contacts[j];
-            const auto a2 = cj.a;
-            const auto b2 = cj.b;
-            const auto normal_j = cj.normal;
-
-            auto val = 0.0f;
-            const auto dot = glm::dot(normal_i, normal_j);
-            if (a1 == a2) {
-                val += dot * inv_mass(colliders[a1]);
-            }
-            if (b1 >= 0 && b1 == a2) {
-                val -= dot * inv_mass(colliders[b1]);
-            }
-            if (a1 == b2) {
-                val -= dot * inv_mass(colliders[a1]);
-            }
-            if (b1 >= 0 && b1 == b2) {
-                val += dot * inv_mass(colliders[b1]);
-            }
-
-            A[i * N + j] = val;
-        }
+        const auto a_ii = inv_mass(colliders[c.a]) + inv_mass(colliders[c.b]);
+        cache[i].eff_mass = (a_ii > 1e-8f) ? 1.0f / a_ii : 0.0f;
     }
 
-    // naive Gaussian elimination
-    for (int k = 0; k < N; ++k) {
-        const auto diag = A[k * N + k];
-        if (glm::abs(diag) < 1e-8f) {
-            continue;
-        }
-        const auto inv_diag = 1.0f / diag;
-        for (int col = k; col < N; ++col) {
-            A[k * N + col] *= inv_diag;
-        }
-        b[k] *= inv_diag;
+    // Projected Gauss-Seidel: iterate, updating velocities in-place after each
+    // impulse so later contacts in the same pass see the corrected state.
+    for (int iter = 0; iter < simulation::num_solver_iterations; ++iter) {
+        for (int i = 0; i < N; ++i) {
+            const auto& c      = contacts[i];
+            const auto  v_rel  = velocity(colliders[c.b]) - velocity(colliders[c.a]);
+            const auto  tangent = glm::vec2{-c.normal.y, c.normal.x};
 
-        for (int row = 0; row < N; ++row) {
-            if (row == k) continue;
-            const auto factor = A[row * N + k];
-            for (int col = k; col < N; ++col) {
-                A[row * N + col] -= factor * A[k * N + col];
-            }
-            b[row] -= factor * b[k];
-        }
-    }
-    auto& j = b; // in reduced echelon form, b now stores j
+            // --- Normal impulse ---
+            // Clamping lambda >= 0 enforces that contacts can only push, never pull.
+            const auto rv_n       = glm::dot(v_rel, c.normal);
+            const auto delta_n    = (cache[i].v_target - rv_n) * cache[i].eff_mass;
+            const auto lambda_old = lambda[i];
+            lambda[i] = std::max(0.0f, lambda[i] + delta_n);
 
-    // apply impulses
-    for (int i = 0; i < N; ++i) {
-        const auto& c = contacts[i];
-        const auto impulse = j[i] * c.normal;
-        apply_impulse(colliders[c.a], -impulse);
-        apply_impulse(colliders[c.b], impulse);
+            const auto impulse_n = (lambda[i] - lambda_old) * c.normal;
+            apply_impulse(colliders[c.a], -impulse_n);
+            apply_impulse(colliders[c.b],  impulse_n);
+
+            // --- Tangential impulse (Coulomb friction / throw) ---
+            // Normal impulse is perpendicular to tangent so rv_t is unaffected by impulse_n.
+            // Spin doesn't contribute here: at a ball-ball contact, w x r_contact is along z
+            // (out of the table plane) and has no 2D tangential component.
+            const auto rv_t         = glm::dot(v_rel, tangent);
+            const auto delta_t      = -rv_t * cache[i].eff_mass;
+            const auto friction_cap = simulation::contact_friction * lambda[i];
+            const auto lambda_t_old = cache[i].lambda_t;
+            cache[i].lambda_t = std::clamp(cache[i].lambda_t + delta_t, -friction_cap, friction_cap);
+
+            const auto impulse_t = (cache[i].lambda_t - lambda_t_old) * tangent;
+            apply_impulse(colliders[c.a], -impulse_t);
+            apply_impulse(colliders[c.b],  impulse_t);
+        }
     }
 }
 
@@ -284,6 +286,63 @@ void fix_positions(std::vector<collider>& colliders, const std::vector<contact>&
         const auto correction = c.penetration * 0.4f * c.normal / (inv_a + inv_b);
         colliders[c.a].pos -= inv_a * correction;
         colliders[c.b].pos += inv_b * correction;
+    }
+}
+
+
+// Applies cloth friction to a single ball for one substep.
+// Distinguishes sliding (high friction, spin catching up to velocity) from
+// rolling (low friction, pure deceleration once spin and velocity are matched).
+void apply_cloth_friction(collider& c, float dt)
+{
+    if (!std::holds_alternative<dynamic_body>(c.body)) return;
+    if (!std::holds_alternative<circle_shape>(c.shape)) return;
+
+    auto& body         = std::get<dynamic_body>(c.body);
+    const auto radius  = std::get<circle_shape>(c.shape).radius;
+    const auto inv_m   = safe_inverse(body.mass);
+    const auto inv_I   = safe_inverse(body.moment_of_inertia);
+
+    // Velocity of the contact point on the cloth surface.
+    // In 3D, contact is at (0,0,-r). With spin = (wx, wy, 0):
+    //   v_contact = vel + spin x (0,0,-r) = vel + (-spin.y, spin.x) * r
+    const auto v_slip = body.vel + glm::vec2{-body.angular_vel.y, body.angular_vel.x} * radius;
+    const auto slip_speed = glm::length(v_slip);
+
+    if (slip_speed > simulation::slip_threshold) {
+        // --- Sliding ---
+        // Apply a Coulomb friction impulse opposing the slip direction,
+        // capped so it can't reverse the slip (p_stop) or exceed mu_k*m*g*dt (p_max).
+        const auto n_slip = v_slip / slip_speed;
+
+        // Effective inverse mass at the contact point for a tangential impulse:
+        //   dv_slip = P * (1/m + r^2/I)  ->  for I=2/5*m*r^2, this equals P * 7/(2m)
+        const auto eff_inv_mass = inv_m + radius * radius * inv_I;
+        const auto p_stop = slip_speed / eff_inv_mass;
+        const auto p_max  = simulation::friction_sliding * body.mass * dt;
+        const auto p      = std::min(p_stop, p_max);
+
+        // Linear impulse: oppose slip
+        body.vel -= p * inv_m * n_slip;
+
+        // Spin impulse: torque from friction at contact = r_contact x F
+        //   d_spin = p * r / I * (-n.y, n.x)
+        body.angular_vel += p * radius * inv_I * glm::vec2{-n_slip.y, n_slip.x};
+    } else {
+        // --- Rolling ---
+        // Snap spin to the exact rolling value to avoid drift.
+        body.angular_vel = glm::vec2{-body.vel.y, body.vel.x} / radius;
+
+        // Low rolling-resistance deceleration.
+        const auto speed = glm::length(body.vel);
+        if (speed > 1e-4f) {
+            const auto decel = std::min(simulation::friction_rolling * dt, speed);
+            body.vel  -= (decel / speed) * body.vel;
+            body.angular_vel  = glm::vec2{-body.vel.y, body.vel.x} / radius;
+        } else {
+            body.vel  = {0.0f, 0.0f};
+            body.angular_vel = {0.0f, 0.0f};
+        }
     }
 }
 
@@ -345,16 +404,9 @@ void simulation::step()
         // 4. positional correction
         fix_positions(colliders, contacts);
     
-        // 5. time-step–dependent global damping
-        const auto damping = std::exp(-0.9f * dt); 
+        // 5. cloth friction (sliding or rolling per ball)
         for (auto& c : colliders) {
-            if (std::holds_alternative<dynamic_body>(c.body)) {
-                auto& vel = std::get<dynamic_body>(c.body).vel;
-                vel *= damping;
-                if (glm::length(vel) < 0.01f) {
-                    vel = glm::vec2{0, 0};
-                }
-            }
+            apply_cloth_friction(c, dt);
         }
     }
 }

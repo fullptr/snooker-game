@@ -42,7 +42,12 @@ struct attractor_body
 struct dynamic_body
 {
     float     mass;
+    float     moment_of_inertia;
     glm::vec2 vel;
+    // Angular velocity (wx, wy) about the table-plane axes.
+    // Contact point velocity = (-angular_vel.y, angular_vel.x) * radius.
+    // Rolling condition: angular_vel = (-vel.y, vel.x) / radius.
+    glm::vec2 angular_vel = {0.0f, 0.0f};
 };
 
 using body_type = std::variant<static_body, attractor_body, dynamic_body>;
@@ -62,9 +67,21 @@ public:
     static constexpr auto time_step = 1.0f / 60.0f;
     static constexpr auto num_substeps = 20;
 
+    // Friction deceleration in cm/s^2 (units match table.hpp).
+    // friction_sliding = mu_k * g ~= 0.2 * 981  (kinetic sliding on cloth)
+    // friction_rolling = empirical rolling resistance for snooker cloth
+    static constexpr auto friction_sliding      = 200.0f;
+    static constexpr auto friction_rolling      = 30.0f;
+    static constexpr auto slip_threshold        = 0.5f;  // cm/s - below this the ball counts as rolling
+    static constexpr auto num_solver_iterations = 10;    // PGS iterations per substep
+    static constexpr auto contact_friction       = 0.05f; // mu for ball-ball / ball-cushion throw
+    static constexpr auto restitution_ball_ball  = 0.95f; // nearly elastic - snooker balls are very hard
+    static constexpr auto restitution_ball_cushion = 0.80f; // cushion absorbs more energy
+
     auto add_dynamic_circle(glm::vec2 pos, float radius, float mass) -> std::size_t
     {
-        const auto col = collider{ .pos=pos, .body=dynamic_body{ .mass=mass, .vel={0.0f, 0.0f} }, .shape=circle_shape{radius} };
+        const auto moi = 0.4f * mass * radius * radius; // solid sphere: I = 2/5 * m * r^2
+        const auto col = collider{ .pos=pos, .body=dynamic_body{ .mass=mass, .moment_of_inertia=moi, .vel={0.0f, 0.0f} }, .shape=circle_shape{radius} };
         const auto id = d_colliders.insert(col);
         return id;
     }
