@@ -276,7 +276,8 @@ struct shot
     float     power;
     glm::vec2 direction;
     glm::vec2 start_mouse_pos;
-    float     max_power = 400.0f;
+    float     max_power   = 400.0f;
+    float     spin_factor = 0.0f;  // -1 = full backspin, 0 = stun, +1 = full topspin
 };
 
 auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_state
@@ -301,16 +302,24 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         const auto mouse_pos = c.to_board(window.mouse_pos());
         
         auto& cue_ball_coll = t.sim.get(t.cue_ball.id);
-        const auto aim_direction = cue ? cue->direction : glm::normalize(cue_ball_coll.pos - mouse_pos);
+        const auto aim_direction = cue ? cue->direction : glm::normalize(mouse_pos - cue_ball_coll.pos);
         
         for (const auto event : window.events()) {
             ui.on_event(event);
             if (const auto e = event.get_if<mouse_pressed_event>(); e && e->button == mouse::left) {
                 cue = shot{0.0f, aim_direction, mouse_pos};
             }
+            if (const auto e = event.get_if<mouse_scrolled_event>(); e && cue) {
+                cue->spin_factor = std::clamp(cue->spin_factor + 0.1f * e->offset.y, -1.0f, 1.0f);
+            }
             if (const auto e = event.get_if<mouse_released_event>(); e && e->button == mouse::left) {
                 if (cue) {
-                    std::get<dynamic_body>(cue_ball_coll.body).vel = cue->power * aim_direction;
+                    auto& body = std::get<dynamic_body>(cue_ball_coll.body);
+                    body.vel   = cue->power * aim_direction;
+                    // Rolling spin for this velocity = (-vel.y, vel.x) / radius.
+                    // spin_factor scales from that: -1 is full backspin, 0 is stun, +1 is topspin.
+                    const auto radius = std::get<circle_shape>(cue_ball_coll.shape).radius;
+                    body.spin  = cue->spin_factor * glm::vec2{-body.vel.y, body.vel.x} / radius;
                     cue = {};
                 }
             }
@@ -428,10 +437,14 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             }
             cue->power = cue->max_power * glm::length(C) / 30.0f;
             ui.text(std::format("Power: {}", std::trunc(cue->power)), {210, 0}, 200, 50, 3);
+            const auto spin_label = cue->spin_factor >  0.05f ? "Top"
+                                  : cue->spin_factor < -0.05f ? "Back"
+                                  : "Stun";
+            ui.text(std::format("Spin: {} ({:+.0f}%)", spin_label, cue->spin_factor * 100.0f), {410, 0}, 250, 50, 3);
             renderer.push_line(c.to_screen(cue_ball_coll.pos), c.to_screen(cue_ball_coll.pos + C), {0, 1, 0, 1}, 2.0f);
         }
 
-        ui.text(std::format("Speed: {:.1f}", glm::length(std::get<dynamic_body>(t.sim.get(t.cue_ball.id).body).vel)), {410, 0}, 200, 50, 3);
+        ui.text(std::format("Speed: {:.1f}", glm::length(std::get<dynamic_body>(t.sim.get(t.cue_ball.id).body).vel)), {670, 0}, 200, 50, 3);
         if (ui.button("Back", {0, 0}, 200, 50, 3)) {
             return next_state::main_menu;
         }
