@@ -34,6 +34,17 @@ struct render_circle
     static void set_buffer_attributes(u32 vbo);
 };
 
+struct render_sphere
+{
+    glm::vec2 centre;
+    float     radius;
+    glm::vec4 colour;
+    glm::vec4 dot_colour;  // colour of the north-pole orientation marker
+    glm::mat3 orientation; // columns stored column-major; sent as 3 x vec3 attributes
+
+    static void set_buffer_attributes(u32 vbo);
+};
+
 struct render_quad
 {
     glm::ivec2 top_left;
@@ -56,10 +67,12 @@ class renderer
 
     std::vector<render_line>   d_lines;
     std::vector<render_circle> d_circles;
+    std::vector<render_sphere> d_spheres;
     std::vector<render_quad>   d_quads;
 
     shader d_line_shader;
     shader d_circle_shader;
+    shader d_sphere_shader;
     shader d_quad_shader;
 
     vertex_buffer d_instances;
@@ -81,6 +94,7 @@ public:
     void push_line(glm::vec2 begin, glm::vec2 end, glm::vec4 begin_colour, glm::vec4 end_colour, float thickness);
     void push_line(glm::vec2 begin, glm::vec2 end, glm::vec4 colour, float thickness);
     void push_circle(glm::vec2 centre, glm::vec4 colour, float radius);
+    void push_sphere(glm::vec2 centre, glm::vec4 colour, float radius, const glm::mat3& orientation, glm::vec4 dot_colour = {1, 1, 1, 1});
     void push_annulus(glm::vec2 centre, glm::vec4 colour, float inner_radius, float outer_radius);
     void push_text(std::string_view message, glm::ivec2 pos, i32 size, glm::vec4 colour);
     void push_text_box(std::string_view message, glm::ivec2 pos, i32 width, i32 height, i32 scale, glm::vec4 colour);
