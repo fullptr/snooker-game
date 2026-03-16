@@ -181,6 +181,83 @@ void main()
 }
 )SHADER";
 
+constexpr auto sphere_vertex = R"SHADER(
+#version 410 core
+layout (location = 0) in vec2 position;
+
+layout (location = 1) in vec2  sphere_centre;
+layout (location = 2) in float sphere_radius;
+layout (location = 3) in vec4  sphere_colour;
+layout (location = 4) in vec4  sphere_dot_colour;
+layout (location = 5) in vec3  sphere_orient_col0;
+layout (location = 6) in vec3  sphere_orient_col1;
+layout (location = 7) in vec3  sphere_orient_col2;
+
+out vec2  o_centre;
+out float o_radius;
+out vec4  o_colour;
+out vec4  o_dot_colour;
+out mat3  o_orientation;
+
+void main()
+{
+    gl_Position   = vec4(position, 0.0, 1.0);
+    o_centre      = sphere_centre;
+    o_radius      = sphere_radius;
+    o_colour      = sphere_colour;
+    o_dot_colour  = sphere_dot_colour;
+    o_orientation = mat3(sphere_orient_col0, sphere_orient_col1, sphere_orient_col2);
+}
+)SHADER";
+
+constexpr auto sphere_fragment = R"SHADER(
+#version 410 core
+layout (location = 0) out vec4 out_colour;
+
+in vec2  o_centre;
+in float o_radius;
+in vec4  o_colour;
+in vec4  o_dot_colour;
+in mat3  o_orientation;
+
+uniform int u_camera_height;
+
+void main()
+{
+    vec2 pixel = vec2(gl_FragCoord.x, u_camera_height - gl_FragCoord.y);
+    vec2 d     = pixel - o_centre;
+    float dist2 = dot(d, d);
+    float r2    = o_radius * o_radius;
+
+    if (dist2 > r2) discard;
+
+    // Outward surface normal in world space (camera looks down the -z axis).
+    // z is the height of the sphere surface above the table plane.
+    float z = sqrt(r2 - dist2);
+    vec3  n = vec3(d.x, d.y, z) / o_radius;
+
+    // Rotate into the ball's local frame to sample the procedural texture.
+    // transpose(orientation) == inverse for an orthogonal matrix.
+    vec3 n_local = transpose(o_orientation) * n;
+
+    // Coloured dot centred on the local north pole (0, 0, 1).
+    // smoothstep gives a soft anti-aliased edge.
+    vec3 base  = o_colour.rgb;
+    float blend = smoothstep(0.87, 0.92, n_local.z);
+    base = mix(base, o_dot_colour.rgb, blend);
+
+    // Diffuse + Blinn-Phong specular lighting.
+    // Light comes from slightly above and to the upper-left.
+    vec3  light_dir = normalize(vec3(-0.3, -0.5, 1.0));
+    float diffuse   = max(dot(n, light_dir), 0.0);
+    vec3  half_dir  = normalize(light_dir + vec3(0.0, 0.0, 1.0));
+    float specular  = pow(max(dot(n, half_dir), 0.0), 64.0);
+
+    vec3 lit = base * (0.25 + 0.70 * diffuse) + vec3(0.9) * specular;
+    out_colour = vec4(lit, 1.0);
+}
+)SHADER";
+
 constexpr auto quad_vertex = R"SHADER(
     #version 410 core
     layout (location = 0) in vec2 p_position;
@@ -387,6 +464,26 @@ void render_circle::set_buffer_attributes(std::uint32_t vbo)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+void render_sphere::set_buffer_attributes(std::uint32_t vbo)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    for (int i = 1; i != 8; ++i) {
+        glEnableVertexAttribArray(i);
+        glVertexAttribDivisor(i, 1);
+    }
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render_sphere), (void*)offsetof(render_sphere, centre));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(render_sphere), (void*)offsetof(render_sphere, radius));
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(render_sphere), (void*)offsetof(render_sphere, colour));
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(render_sphere), (void*)offsetof(render_sphere, dot_colour));
+
+    // mat3 is 3 consecutive vec3 columns in memory
+    const auto off = offsetof(render_sphere, orientation);
+    glVertexAttribPointer(5, 3, GL_FLOAT, GL_FALSE, sizeof(render_sphere), (void*)(off));
+    glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, sizeof(render_sphere), (void*)(off + sizeof(glm::vec3)));
+    glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, sizeof(render_sphere), (void*)(off + 2 * sizeof(glm::vec3)));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
 void render_quad::set_buffer_attributes(std::uint32_t vbo)
 {
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -408,6 +505,7 @@ void render_quad::set_buffer_attributes(std::uint32_t vbo)
 renderer::renderer()
     : d_line_shader(line_vertex, line_fragment)
     , d_circle_shader(circle_vertex, circle_fragment)
+    , d_sphere_shader(sphere_vertex, sphere_fragment)
     , d_quad_shader(quad_vertex, quad_fragment)
     , d_atlas{load_pixel_font_atlas()}
 {
@@ -487,9 +585,15 @@ void renderer::draw(i32 screen_width, i32 screen_height)
     d_instances.bind<render_circle>(d_circles);
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, (int)d_circles.size());
 
+    d_sphere_shader.bind();
+    d_sphere_shader.load_int("u_camera_height", screen_height);
+    d_instances.bind<render_sphere>(d_spheres);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, (int)d_spheres.size());
+
     glDisable(GL_BLEND);
     d_lines.clear();
     d_circles.clear();
+    d_spheres.clear();
 }
 
 void renderer::push_rect(glm::vec2 top_left, float width, float height, glm::vec4 colour)
@@ -515,6 +619,11 @@ void renderer::push_line(glm::vec2 begin, glm::vec2 end, glm::vec4 colour, float
 void renderer::push_circle(glm::vec2 centre, glm::vec4 colour, float radius)
 {
     d_circles.emplace_back(centre, 0.0f, radius, colour, colour, 0.0f);
+}
+
+void renderer::push_sphere(glm::vec2 centre, glm::vec4 colour, float radius, const glm::mat3& orientation, glm::vec4 dot_colour)
+{
+    d_spheres.emplace_back(centre, radius, colour, dot_colour, orientation);
 }
 
 void renderer::push_annulus(glm::vec2 centre, glm::vec4 colour, float inner_radius, float outer_radius)

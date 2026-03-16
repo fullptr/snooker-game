@@ -3,6 +3,7 @@
 #include "simulation.hpp"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <variant>
 
 namespace snooker {
@@ -17,7 +18,8 @@ struct ball
 {
     std::size_t id;
     glm::vec4   colour;
-    bool        is_pocketed = false;
+    bool        is_pocketed  = false;
+    glm::mat3   orientation  = glm::mat3(1.0f); // tracks 3D rotation for sphere rendering
 };
 
 // dimensions are an english pool table in cm (6ft x 3ft)

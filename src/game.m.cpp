@@ -10,6 +10,7 @@
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/norm.hpp>
 #include <glm/gtx/hash.hpp>
 
@@ -23,6 +24,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <source_location>
+#include <random>
 
 using namespace snooker;
 
@@ -111,25 +113,30 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     const auto yel = glm::vec4{1, 1, 0, 1};
     const auto blk = glm::vec4{0, 0, 0, 1};
 
-    t.add_ball(front_pos + 0.0f * left + 0.0f * down, red);
+    // small random positional jitter so each break plays out differently
+    auto rng    = std::mt19937{std::random_device{}()};
+    auto jitter = std::uniform_real_distribution<float>{-0.1f, 0.1f};
+    auto j      = [&] { return glm::vec2{jitter(rng), jitter(rng)}; };
 
-    t.add_ball(front_pos + 1.0f * left + 0.0f * down, red);
-    t.add_ball(front_pos + 1.0f * left + 1.0f * down, yel);
+    t.add_ball(front_pos + 0.0f * left + 0.0f * down + j(), red);
 
-    t.add_ball(front_pos + 2.0f * left + 0.0f * down, yel);
-    t.add_ball(front_pos + 2.0f * left + 1.0f * down, blk);
-    t.add_ball(front_pos + 2.0f * left + 2.0f * down, red);
+    t.add_ball(front_pos + 1.0f * left + 0.0f * down + j(), red);
+    t.add_ball(front_pos + 1.0f * left + 1.0f * down + j(), yel);
 
-    t.add_ball(front_pos + 3.0f * left + 0.0f * down, red);
-    t.add_ball(front_pos + 3.0f * left + 1.0f * down, yel);
-    t.add_ball(front_pos + 3.0f * left + 2.0f * down, red);
-    t.add_ball(front_pos + 3.0f * left + 3.0f * down, yel);
+    t.add_ball(front_pos + 2.0f * left + 0.0f * down + j(), yel);
+    t.add_ball(front_pos + 2.0f * left + 1.0f * down + j(), blk);
+    t.add_ball(front_pos + 2.0f * left + 2.0f * down + j(), red);
 
-    t.add_ball(front_pos + 4.0f * left + 0.0f * down, yel);
-    t.add_ball(front_pos + 4.0f * left + 1.0f * down, yel);
-    t.add_ball(front_pos + 4.0f * left + 2.0f * down, red);
-    t.add_ball(front_pos + 4.0f * left + 3.0f * down, yel);
-    t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
+    t.add_ball(front_pos + 3.0f * left + 0.0f * down + j(), red);
+    t.add_ball(front_pos + 3.0f * left + 1.0f * down + j(), yel);
+    t.add_ball(front_pos + 3.0f * left + 2.0f * down + j(), red);
+    t.add_ball(front_pos + 3.0f * left + 3.0f * down + j(), yel);
+
+    t.add_ball(front_pos + 4.0f * left + 0.0f * down + j(), yel);
+    t.add_ball(front_pos + 4.0f * left + 1.0f * down + j(), yel);
+    t.add_ball(front_pos + 4.0f * left + 2.0f * down + j(), red);
+    t.add_ball(front_pos + 4.0f * left + 3.0f * down + j(), yel);
+    t.add_ball(front_pos + 4.0f * left + 4.0f * down + j(), red);
 }
 
 auto add_chain(table& t, const std::vector<glm::vec2>& points)
@@ -328,8 +335,22 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
         accumulator += dt;
         while (accumulator > simulation::time_step) {
             t.sim.step();
-            accumulator -= step;
+            accumulator -= simulation::time_step;
         }
+
+        // Advance each ball's visual orientation using its current angular velocity.
+        // angular_vel = (wx, wy) is the 3D spin axis projected onto the table plane.
+        auto update_orientation = [&](ball& b) {
+            const auto& body = std::get<dynamic_body>(t.sim.get(b.id).body);
+            const auto  omega = glm::vec3(body.angular_vel.x, body.angular_vel.y, 0.0f);
+            const auto  speed = glm::length(omega);
+            if (speed > 1e-6f) {
+                const auto dR  = glm::mat3(glm::rotate(glm::mat4(1.0f), speed * (float)dt, omega / speed));
+                b.orientation  = dR * b.orientation;
+            }
+        };
+        update_orientation(t.cue_ball);
+        for (auto& b : t.object_balls) update_orientation(b);
         
         // Handle pocketed balls
         for (auto& ball : t.object_balls) {
@@ -364,13 +385,13 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
 
         renderer.draw(window.width(), window.height());
 
-        // Draw cue ball
+        // Draw cue ball with a red dot so the spin is visible against the white surface
         {
             const auto& ball = t.cue_ball;
             const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.shape), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.shape).radius;
-            renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
+            renderer.push_sphere(c.to_screen(coll.pos), ball.colour, c.to_screen(radius), ball.orientation, {1, 0, 0, 1});
         }
 
         // Draw object balls
@@ -389,7 +410,7 @@ auto scene_game(snooker::window& window, snooker::renderer& renderer) -> next_st
             const auto& coll = t.sim.get(ball.id);
             assert_that(std::holds_alternative<circle_shape>(coll.shape), "only supporting balls for now");
             const auto radius = std::get<circle_shape>(coll.shape).radius;
-            renderer.push_circle(c.to_screen(coll.pos), ball.colour, c.to_screen(radius));
+            renderer.push_sphere(c.to_screen(coll.pos), ball.colour, c.to_screen(radius), ball.orientation);
         }
 
         // Draw the direction of both balls after 
