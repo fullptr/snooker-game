@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <source_location>
+#include <random>
 
 using namespace snooker;
 
@@ -112,25 +113,30 @@ auto add_triangle(table& t, glm::vec2 front_pos) -> void
     const auto yel = glm::vec4{1, 1, 0, 1};
     const auto blk = glm::vec4{0, 0, 0, 1};
 
-    t.add_ball(front_pos + 0.0f * left + 0.0f * down, red);
+    // small random positional jitter so each break plays out differently
+    auto rng    = std::mt19937{std::random_device{}()};
+    auto jitter = std::uniform_real_distribution<float>{-0.1f, 0.1f};
+    auto j      = [&] { return glm::vec2{jitter(rng), jitter(rng)}; };
 
-    t.add_ball(front_pos + 1.0f * left + 0.0f * down, red);
-    t.add_ball(front_pos + 1.0f * left + 1.0f * down, yel);
+    t.add_ball(front_pos + 0.0f * left + 0.0f * down + j(), red);
 
-    t.add_ball(front_pos + 2.0f * left + 0.0f * down, yel);
-    t.add_ball(front_pos + 2.0f * left + 1.0f * down, blk);
-    t.add_ball(front_pos + 2.0f * left + 2.0f * down, red);
+    t.add_ball(front_pos + 1.0f * left + 0.0f * down + j(), red);
+    t.add_ball(front_pos + 1.0f * left + 1.0f * down + j(), yel);
 
-    t.add_ball(front_pos + 3.0f * left + 0.0f * down, red);
-    t.add_ball(front_pos + 3.0f * left + 1.0f * down, yel);
-    t.add_ball(front_pos + 3.0f * left + 2.0f * down, red);
-    t.add_ball(front_pos + 3.0f * left + 3.0f * down, yel);
+    t.add_ball(front_pos + 2.0f * left + 0.0f * down + j(), yel);
+    t.add_ball(front_pos + 2.0f * left + 1.0f * down + j(), blk);
+    t.add_ball(front_pos + 2.0f * left + 2.0f * down + j(), red);
 
-    t.add_ball(front_pos + 4.0f * left + 0.0f * down, yel);
-    t.add_ball(front_pos + 4.0f * left + 1.0f * down, yel);
-    t.add_ball(front_pos + 4.0f * left + 2.0f * down, red);
-    t.add_ball(front_pos + 4.0f * left + 3.0f * down, yel);
-    t.add_ball(front_pos + 4.0f * left + 4.0f * down, red);
+    t.add_ball(front_pos + 3.0f * left + 0.0f * down + j(), red);
+    t.add_ball(front_pos + 3.0f * left + 1.0f * down + j(), yel);
+    t.add_ball(front_pos + 3.0f * left + 2.0f * down + j(), red);
+    t.add_ball(front_pos + 3.0f * left + 3.0f * down + j(), yel);
+
+    t.add_ball(front_pos + 4.0f * left + 0.0f * down + j(), yel);
+    t.add_ball(front_pos + 4.0f * left + 1.0f * down + j(), yel);
+    t.add_ball(front_pos + 4.0f * left + 2.0f * down + j(), red);
+    t.add_ball(front_pos + 4.0f * left + 3.0f * down + j(), yel);
+    t.add_ball(front_pos + 4.0f * left + 4.0f * down + j(), red);
 }
 
 auto add_chain(table& t, const std::vector<glm::vec2>& points)
