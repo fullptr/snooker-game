@@ -243,7 +243,7 @@ void main()
     // Coloured dot centred on the local north pole (0, 0, 1).
     // smoothstep gives a soft anti-aliased edge.
     vec3 base  = o_colour.rgb;
-    float blend = smoothstep(0.72, 0.78, n_local.z);
+    float blend = smoothstep(0.87, 0.92, n_local.z);
     base = mix(base, o_dot_colour.rgb, blend);
 
     // Diffuse + Blinn-Phong specular lighting.

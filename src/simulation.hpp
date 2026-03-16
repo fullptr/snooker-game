@@ -68,13 +68,15 @@ public:
     static constexpr auto num_substeps = 20;
 
     // Friction deceleration in cm/s^2 (units match table.hpp).
-    // friction_sliding = mu_k * g ~= 0.2 * 981  (kinetic sliding on cloth)
-    // friction_rolling = empirical rolling resistance for snooker cloth
-    static constexpr auto friction_sliding      = 200.0f;
+    // friction_sliding = mu_k * g. Lower values extend the sliding phase, making
+    // topspin/backspin effects last longer before the ball settles into pure roll.
+    // Real snooker cloth: mu_k ~0.15-0.20, giving 150-200 cm/s^2.
+    // friction_rolling = rolling resistance. Real snooker cloth: ~30-50 cm/s^2.
+    static constexpr auto friction_sliding      = 150.0f;
     static constexpr auto friction_rolling      = 30.0f;
     static constexpr auto slip_threshold        = 0.5f;  // cm/s - below this the ball counts as rolling
     static constexpr auto num_solver_iterations = 10;    // PGS iterations per substep
-    static constexpr auto contact_friction       = 0.05f; // mu for ball-ball / ball-cushion throw
+    static constexpr auto contact_friction       = 0.0f;  // throw disabled so shots match the aim line
     static constexpr auto restitution_ball_ball  = 0.95f; // nearly elastic - snooker balls are very hard
     static constexpr auto restitution_ball_cushion = 0.80f; // cushion absorbs more energy
 
